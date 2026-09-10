@@ -1,6 +1,6 @@
 // Sync FutuOpenD stableVersion across docs and .env.example in lockstep with
 // opend_version.json. Invoked by the daily Check Futu OpenD Version
-// workflow after check_version.js writes the JSON, so the same auto-merge
+// workflow after check_version.js writes the JSON, so the same review-only
 // PR carries both the source-of-truth bump and every downstream literal.
 //
 // If you run this manually and abort mid-way, your working tree may be
@@ -29,7 +29,7 @@ const BUILD_ARG_RE = new RegExp(`FUTU_OPEND_VER=${SEMVER}`, 'g')
 const TARBALL_RE = new RegExp(`Futu_OpenD_${SEMVER}_`, 'g')
 const BARE_SEMVER_RE = new RegExp(SEMVER, 'g')
 
-function applyVersionUpdates (content, stableVersion) {
+function applyVersionUpdates (content, stableVersion, stableSha256) {
   return content
     .split('\n')
     .map((line) => {
@@ -39,12 +39,15 @@ function applyVersionUpdates (content, stableVersion) {
       if (next.includes(MARKER)) {
         next = next.replace(BARE_SEMVER_RE, stableVersion)
       }
+      if (next.startsWith('FUTU_OPEND_SHA256=')) {
+        next = `FUTU_OPEND_SHA256=${stableSha256 || ''}`
+      }
       return next
     })
     .join('\n')
 }
 
-function readStableVersion (versionFile = VERSION_FILE) {
+function readVersionConfig (versionFile = VERSION_FILE) {
   const raw = fs.readFileSync(versionFile, 'utf8')
   const data = JSON.parse(raw)
   if (typeof data.stableVersion !== 'string' || !STABLE_VERSION_RE.test(data.stableVersion)) {
@@ -52,20 +55,28 @@ function readStableVersion (versionFile = VERSION_FILE) {
       `opend_version.json stableVersion must match X.Y.Z (got ${JSON.stringify(data.stableVersion)})`
     )
   }
-  return data.stableVersion
+  const sha256 = data.stableArtifact?.sha256
+  if (sha256 !== null && sha256 !== undefined && !/^[0-9a-f]{64}$/.test(sha256)) {
+    throw new Error('opend_version.json stableArtifact.sha256 must be lowercase hexadecimal or null')
+  }
+  return { stableVersion: data.stableVersion, stableSha256: sha256 || null }
 }
 
-function syncFile (relPath, stableVersion, root = ROOT) {
+function readStableVersion (versionFile = VERSION_FILE) {
+  return readVersionConfig(versionFile).stableVersion
+}
+
+function syncFile (relPath, stableVersion, root = ROOT, stableSha256 = null) {
   const absPath = path.join(root, relPath)
   const current = fs.readFileSync(absPath, 'utf8')
-  const next = applyVersionUpdates(current, stableVersion)
+  const next = applyVersionUpdates(current, stableVersion, stableSha256)
   if (next === current) return false
   fs.writeFileSync(absPath, next, 'utf8')
   return true
 }
 
 function main () {
-  const stableVersion = readStableVersion()
+  const { stableVersion, stableSha256 } = readVersionConfig()
   console.log(
     JSON.stringify({
       level: 'info',
@@ -76,7 +87,7 @@ function main () {
 
   let filesChanged = 0
   for (const relPath of TARGET_FILES) {
-    const changed = syncFile(relPath, stableVersion)
+    const changed = syncFile(relPath, stableVersion, ROOT, stableSha256)
     if (changed) {
       filesChanged += 1
       console.log(
@@ -97,6 +108,7 @@ function main () {
 
 module.exports = {
   applyVersionUpdates,
+  readVersionConfig,
   readStableVersion,
   syncFile,
   main,

@@ -51,6 +51,15 @@ Official references:
 - [命令行 OpenD，富途 API 文档 v10.10](https://openapi.futunn.com/futu-api-doc/opend/opend-cmd.html)
 - [OpenD changelog](https://openapi.futunn.com/futu-api-doc/en/changelog/changelog.html)
 - [OpenD operation commands](https://openapi.futunn.com/futu-api-doc/en/opend/opend-operate.html)
+- [Ubuntu 18.04 lifecycle status](https://ubuntu.com/18-04)
+- [Ubuntu release lifecycle](https://ubuntu.com/about/release-cycle)
+- [Ubuntu 18.04 amd64 image manifest](https://hub.docker.com/layers/library/ubuntu/18.04/images/sha256-dca176c9663a7ba4c1f0e710986f5a25e672842963d95b960191e2d9f7185ebe)
+- [Ubuntu 22.04 amd64 image manifest](https://hub.docker.com/layers/library/ubuntu/22.04/images/sha256-281c5745f657873d78e5531fc5ba8575f46ab7769b94550ac99543f122679986)
+- [Futu Python SDK installation](https://openapi.futunn.com/futu-api-doc/en/quick/demo.html)
+- [Futu SDK encryption configuration](https://openapi.futunn.com/futu-api-doc/en/ftapi/init.html)
+- [Futu `get_global_state()`](https://openapi.futunn.com/futu-api-doc/en/quote/get-global-state.html)
+- [`actions/checkout` v4.2.2 release](https://github.com/actions/checkout/releases/tag/v4.2.2)
+- [`actions/setup-node` v4.4.0 release](https://github.com/actions/setup-node/releases/tag/v4.4.0)
 
 The v10.10 command-line page itself contains stale-looking prose saying that
 ordinary use changes account/password in XML, while its configuration table no
@@ -89,6 +98,9 @@ configuration file. This conflict is recorded rather than silently resolved.
   confirm the documented interactive/remembrance flow, and that result must
   remain `NOT RUN` until they report it. Any discrepancy between help output,
   docs, and behavior is recorded verbatim and not papered over.
+- Phase 1 resolution: **已实现（包装层）**. XML credentials were removed and
+  the two documented flows are explicit. Real 10.10.7008 binary and session
+  behavior remain **未验证**; see the Phase 1 checks below.
 
 ### FH-02 — Listener defaults are broader than a personal single-host default
 
@@ -118,6 +130,11 @@ configuration file. This conflict is recorded rather than silently resolved.
   inspect the generated XML in an isolated container and use host-side socket
   checks to prove only the intended loopback listeners exist. Add negative
   tests for unsafe WebSocket combinations.
+- Phase 2 resolution: **已实现（静态模型与包装层）**. Bridge is the standalone
+  default with API published only on host loopback and outbound networking
+  retained. Host mode is a separate complete file with no ports and loopback
+  bind. Telnet/WebSocket default to absent XML. Actual packet flow and real
+  authentication remain **未验证**.
 
 ### FH-03 — Download transport and artifact integrity are not hardened
 
@@ -140,6 +157,16 @@ configuration file. This conflict is recorded rather than silently resolved.
 - Acceptance: shell tests with a local HTTP fixture cover success, redirect,
   404/500, timeout, truncated content, and digest mismatch; a Linux/amd64 build
   records and verifies the expected archive digest.
+- Phase 3 resolution: **已实现（下载器与失败关闭）**. The downloader now
+  requires HTTPS for the initial request and redirects, fails on HTTP errors,
+  bounds connect/total/retry time, validates exact version/name/digest/archive
+  paths, and atomically replaces only after successful verification. Offline
+  fake-curl/local-tar tests cover HTTP exit 22, timeout exit 28, malformed input,
+  checksum mismatch, wrong archive root, and cleanup. No publisher checksum or
+  signature was found and the official archive could not be resolved from this
+  sandbox, so `stableArtifact.sha256` remains `null` and builds fail closed.
+  `--report-tofu` prints a candidate from a validated temporary official-HTTPS
+  download but explicitly does not claim publisher-authenticated provenance.
 
 ### FH-04 — Version, base image, target selection, and platform are inconsistent
 
@@ -168,6 +195,19 @@ configuration file. This conflict is recorded rather than silently resolved.
   report the same base/archive digests, contain the requested OpenD version,
   and pass an image-structure comparison. If byte-for-byte image identity is
   required, normalize all remaining build metadata and test that separately.
+- Phase 1 progress: Dockerfile defaults were aligned to `10.10.7008` only as a
+  prerequisite for the version-gated wrapper. Digest pinning, target narrowing,
+  and reproducibility remain open for Phase 3.
+- Phase 3 resolution: **已实现（声明与静态构建路径）**. The only final stage
+  is `runtime`; it has no version fallback or `BASE_IMG` selector, and Compose
+  plus CI select `linux/amd64` and target `runtime`. Ubuntu 22.04 build and
+  Ubuntu 18.04 runtime amd64 manifests are digest-pinned. CentOS 7 and floating
+  stable tags were removed from the maintained publish path. OpenD runs as
+  explicit UID/GID `10001:10001`, application files are root-owned under
+  `/opt/futu-opend`, and the existing state-volume name/path remain unchanged.
+  Ubuntu 18.04 is knowingly retained as an out-of-standard-support binary
+  compatibility baseline; binary dependencies and a newer-runtime migration
+  remain **未验证**, as do actual image reproducibility and startup.
 
 ### FH-05 — Several environment variables do not have the advertised semantics
 
@@ -197,6 +237,12 @@ configuration file. This conflict is recorded rather than silently resolved.
 - Acceptance: table-driven tests generate configuration from fake inputs and
   assert exact XML/argv for unset, empty, valid, and invalid cases, including
   disabled Telnet/WebSocket and a non-default API port.
+- Phase 1 progress: required/optional input validation, path overrides, empty
+  Telnet/WebSocket handling, and value-free legacy-password rejection are
+  covered by fake-OpenD tests. Listener hardening remains Phase 2.
+- Phase 2 progress: Telnet now has an independent bind address; unset and empty
+  optional ports both disable XML elements. Rendered Compose tests cover both
+  cases and custom API-port propagation.
 
 ### FH-06 — Health checks, CI, and E2E claims exceed their evidence
 
@@ -237,6 +283,27 @@ configuration file. This conflict is recorded rather than silently resolved.
   gate fail. Test teardown must list and delete only its generated resources.
   Report protocol/login checks as `NOT RUN` unless genuinely executed by the
   authorized operator.
+- Phase 1 progress: CI now runs the fake-OpenD wrapper suite and is configured
+  to inspect actual image `-help` output instead of accepting an undocumented
+  login exit code. The old real-login E2E is an explicit skip. The CI image
+  check was not run locally and full isolated E2E design remains Phase 4.
+- Phase 2 progress: Compose health is now process-only liveness and documentation
+  explicitly separates it from SDK readiness. Bounded restart, shutdown grace,
+  and log rotation are configured; daemon/runtime behavior remains unverified.
+- Phase 3 progress: publish CI now runs unit/offline tests, rejects an absent or
+  malformed artifact lock, builds only `linux/amd64`/`runtime`, checks image
+  architecture, UID/GID, version label and actual help parameters, and exercises
+  the wrapper with a fake executable. It publishes only an explicit version tag.
+  None of those image gates ran locally in this phase.
+- Phase 4 resolution: **已实现（分层测试与 CI 条件）**. Layer 1 always runs
+  without credentials; Layer 2 builds and inspects the image with unique test
+  resources and controlled fake OpenD startup; Layer 3 defaults to an explicit
+  skip and performs only encrypted `get_global_state()` when the user enables
+  it. PR CI is read-only and cannot publish. Its aggregate gate accepts a Layer
+  2 skip only for an explicitly classified docs-only change. Trusted main/manual
+  publishing reruns Layers 1 and 2 before registry authentication. Version
+  automation now creates a review-only PR and never auto-merges or deploys.
+  Layer 2 and real Layer 3 remain **未验证** locally; see Phase 4 checks.
 
 ### FH-07 — State, key permissions, and process lifecycle need stronger contracts
 
@@ -268,6 +335,14 @@ configuration file. This conflict is recorded rather than silently resolved.
   graceful exit and exit-code propagation; restart tests use a fake child
   process; ownership is checked by metadata only; a sentinel in a test volume
   survives recreate; the test key cannot be modified from the container.
+- Phase 1 progress: `exec`, SIGTERM/exit propagation tests, restrictive runtime
+  XML, a read-only Compose key mount, stable HOME/user/volume configuration,
+  and wrapper locking are implemented. Actual OpenD monitor topology, pinned
+  UID/GID, and target-volume lifecycle tests remain unverified/open.
+- Phase 2 progress: the host key stays mode `0600` and read-only; a networkless,
+  non-restarting key initializer creates a mode-`0400` copy owned by the actual
+  image `futu` UID/GID in a separate key volume. The main service mounts it
+  read-only. The existing state volume is unchanged and no migration ran.
 
 ## Audit-phase checks
 
@@ -288,19 +363,311 @@ configuration file. This conflict is recorded rather than silently resolved.
 
 - [x] Phase 0 — baseline and evidence audit: document findings, constraints,
   minimal changes, and acceptance methods.
-- [ ] Phase 1 — login mechanism: reconcile 10.10 startup with official docs and
-  isolated Linux/amd64 help output; implement first-run versus remembered-state
-  behavior without agent-run login.
-- [ ] Phase 2 — security configuration: loopback defaults, independent Telnet
-  binding/disable semantics, WebSocket safeguards, key mount and permissions.
-- [ ] Phase 3 — reproducible build: one Linux/amd64 target, aligned version
-  source, pinned base/archive digests, strict download handling.
-- [ ] Phase 4 — test and CI isolation: fake-input config tests, local download
-  fixtures, lifecycle/state tests with unique temporary resources, and honest
-  CI gates.
+- [x] Phase 1 — login mechanism implementation: separate first-run interactive
+  and remembered-state startup, remove XML credentials, harden the wrapper, and
+  add fake-OpenD tests. Linux/amd64 binary and real-login acceptance remain
+  explicitly unverified below.
+- [x] Phase 2 — Compose/runtime security implementation: standalone bridge and
+  host files, listener disable semantics, key preparation, bounded lifecycle,
+  and rendered-model tests. Target packet flow and authentication remain
+  explicitly unverified below.
+- [x] Phase 3 — reproducible-build inputs: one Linux/amd64 target, aligned
+  version source, pinned base manifests, strict download handling, and a
+  fail-closed archive lock. The archive digest and target-runtime behavior
+  remain deliberately unverified until operator review/acceptance.
+- [x] Phase 4 — layered tests and CI isolation: deterministic unit/config tests,
+  unique no-credential container resources, strict aggregate gates, and an
+  explicit user-only encrypted read-only protocol check.
 - [ ] Phase 5 — documentation reconciliation and final acceptance matrix:
   remove stale claims, preserve upstream attribution, and report every target
   check as PASSED, FAILED, SKIPPED, or NOT RUN.
 
 The phases deliberately keep login, security configuration, build hardening,
-and test/CI work separate. Phase 1 is next; this audit phase does not start it.
+and test/CI work separate. Phase 5 reconciliation remains next and was not
+started here.
+
+## Phase 1 — login adaptation
+
+Phase baseline commit: `74170f34e570fcdcac9349e0ecfb8e4b5fb963af`.
+
+### Changes
+
+- Added wrapper-only `FUTU_LOGIN_MODE=interactive|remember` and limited the
+  wrapper to OpenD `10.10.7008`.
+- `interactive` requires attached stdin/stdout TTYs and passes no invented
+  login parameters. `remember` requires `FUTU_ACCOUNT_ID` and passes official
+  `-login_account`, optional `-area_code`, and `-login_by_remember=1` arguments
+  using a shell array.
+- Removed account/password elements from `FutuOpenD.xml`. Non-empty legacy
+  password variables now stop with a value-free migration message.
+- Replaced `sed` rendering with explicit placeholders and XML escaping; added
+  strict shell mode, input validation, `umask 077`, runtime XML mode `0600`,
+  documented path overrides, and `exec` for PID 1/stdin/signal/exit behavior.
+- Initialization and routine startup retain the `futu-opend-data` volume,
+  `futu` user, and `/home/futu` HOME. A non-blocking `flock` on the shared state
+  directory rejects simultaneous wrapper-launched OpenD processes. The lock is
+  not treated as a login-success marker and state contents are never read.
+- Routine Compose startup no longer allocates stdin or a TTY. The one-off
+  initialization uses `--interactive` from a local terminal, where Compose
+  auto-allocates a TTY, so an accidental background `interactive` start fails
+  instead of waiting on an unseen prompt.
+- Added `script/start.test.sh` with a controlled fake OpenD and only temporary
+  fake resources. Disabled the obsolete destructive real-login Compose E2E as
+  an explicit skipped test.
+- Updated Compose, README, `.env.example`, CI parameter-help validation,
+  agent guidance, and E2E status documentation. The named volume was not
+  renamed, cleared, inspected, or migrated.
+- Aligned Dockerfile defaults to `10.10.7008` because the version-gated wrapper
+  would otherwise make an unqualified build unusable. Full reproducible-build
+  work remains Phase 3.
+
+### Checks
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| Official 10.10 command-line and 10.10.7008 changelog review | PASSED | Supports interactive startup, remembered-login arguments, phone `area_code`, and removal of XML account/password fields. |
+| `bash -n script/start.sh script/start.test.sh` | PASSED | Strict-mode scripts parse successfully. |
+| `bash script/start.test.sh` | PASSED | 16 fake-OpenD checks passed; no Docker, network, credentials, or real login. |
+| Template XML parse with Python standard library | PASSED | `FutuOpenD.xml` is well-formed before wrapper substitution. |
+| `package.json` parse with Python standard library | PASSED | JSON is valid. |
+| Compose and publish-workflow YAML parse with Ruby Psych | PASSED | Syntax trees parsed without accessing `.env` or rendering Compose values. |
+| `docker compose run --help` outside the project directory | PASSED | Confirmed `--interactive` and automatic TTY behavior without loading project configuration or contacting the daemon. |
+| `git diff --check` | PASSED | No whitespace errors at the checkpoint. |
+| ShellCheck, shfmt, and pre-commit hooks | NOT RUN | These tools are not installed/on `PATH` in the current environment. |
+| Node unit tests and skipped E2E reporting | NOT RUN | Node/npm are unavailable in the current environment. |
+| Docker Compose model/build | NOT RUN | Docker daemon is unavailable inside the sandbox; no deployment was attempted. |
+| Linux/amd64 `FutuOpenD -help` parameter gate | NOT RUN | Added to publish CI, but not executed locally. CI must confirm `login_account`, `login_by_remember`, `area_code`, and `cfg_file`. |
+| OpenD monitor/daemon process topology | NOT RUN | No `no_monitor` assumption was added; must be observed on the target binary before changing argv. |
+| First interactive real login and remember selection | NOT RUN | User-only private-terminal step; agents must not execute it. |
+| Routine startup from valid persisted state | NOT RUN | Requires the preceding user-only initialization and actual Futu session result. |
+| Missing/expired remembered-state reauthentication | NOT RUN | README provides the non-destructive manual flow; actual behavior remains user-verified. |
+
+### Remaining manual acceptance
+
+On the intended private Linux/amd64 host, the user must confirm that the exact
+10.10.7008 binary help matches the documented arguments, that interactive mode
+accepts and preserves its TTY, that choosing OpenD's remember-password option
+allows a later `remember` start from the same volume, and that expired state
+returns a clear OpenD failure followed by successful manual reauthentication.
+These checks must not inspect session-file contents and must remain `NOT RUN`
+until the user actually performs and reports them. No permanent exemption from
+password or verification prompts is promised.
+
+## Phase 2 — Compose and runtime hardening
+
+Phase baseline: HEAD `74170f34e570fcdcac9349e0ecfb8e4b5fb963af`
+plus the existing uncommitted Phase 1 changes. Those changes were preserved.
+
+### Changes
+
+- Replaced host networking as the default. `docker-compose.yaml` is a complete
+  bridge model with `internal: false`; API binds the container interface and is
+  published only to host `127.0.0.1`. Same-network containers remain able to
+  reach the API and are documented as trusted clients.
+- Added complete standalone `docker-compose.host.yaml`. It uses host networking,
+  has no `ports`, and defaults API to host loopback. Documentation forbids
+  layering the bridge and host files and shows full `--env-file` / `-f` commands.
+- Telnet now has independent `FUTU_OPEND_TELNET_IP`. Telnet and WebSocket ports
+  default to empty; both unset and empty cause their XML elements to be omitted.
+  Non-loopback API binds require a readable RSA key, and non-loopback WebSocket
+  is rejected until its required TLS configuration exists.
+- Added `futu-key-init`, `script/init-key.sh`, and offline tests. The one-shot
+  helper has no network and no restart, reads a mode-`0600` host key through a
+  read-only bind, checks regular-file/readability/PKCS#1 and unencrypted markers,
+  verifies the copy matches without logging a checksum, and writes a
+  mode-`0400` copy owned by the image's actual `futu` UID/GID. Main OpenD remains
+  non-root and mounts the key volume read-only.
+- Kept `futu-opend-data` unchanged. No state contents were inspected and no
+  ownership migration, deletion, rename, or automatic account switch occurred.
+- Added 30-second stop grace, `on-failure:3` bounded restart, process-only
+  liveness, and three 10 MiB `json-file` logs. Documentation records that
+  health is not readiness and an unhealthy state alone does not trigger Docker
+  restart.
+- Added official encrypted SDK connection examples for host loopback and the
+  trusted Compose network. They configure the same private key and enable
+  protocol encryption before opening the context. Examples were not executed.
+- Did not add `read_only` root filesystems, privileged mode, broad capability
+  changes, firewall changes, or Docker daemon changes without runtime evidence.
+
+### Checks
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| `bash -n` for startup, key-init, and Compose test scripts | PASSED | All five shell files parsed. |
+| `bash script/start.test.sh` | PASSED | 19 fake-OpenD checks, including independent Telnet, unset/empty listeners, API-key requirement, and WebSocket guard. |
+| `bash script/init-key.test.sh` | PASSED | 8 fake-key checks for metadata, encrypted/wrong formats, and requested failure paths. |
+| `bash script/compose.test.sh` | PASSED | 6 assertions after four real `docker compose config --format json` renders using explicit fake env files. |
+| Default bridge effective model | PASSED | No host mode; only API published on `127.0.0.1`; network not internal; optional listeners empty. |
+| Standalone host effective model | PASSED | Host network present, no ports, API bind `127.0.0.1`; optional listeners empty. |
+| Custom API port model | PASSED | `12345` reached container environment, target port, and loopback publication. |
+| State/key volume names across files | PASSED | Same explicit test project resolved identical names in both standalone files. |
+| Docker daemon, image build, or container execution | NOT RUN | Compose rendering used the client only; sandbox daemon access remains unavailable. |
+| Actual key initializer inside the Linux/amd64 image | NOT RUN | Offline test used fake material/current test UID/GID; image tools and mounts need target verification. |
+| Bridge outbound/authentication and SDK connection | NOT RUN | Requires user-controlled Linux/amd64 runtime and real login; no network behavior is claimed. |
+| Host-network authentication and SDK connection | NOT RUN | Compatibility flow is documented but not executed. |
+| Same-network container SDK connection | NOT RUN | Example is documentation only; the trust boundary is explicit. |
+| Shutdown grace, bounded restart, and Docker daemon reboot behavior | NOT RUN | Effective configuration is verified; real OpenD lifecycle behavior is not. |
+| Existing state-volume ownership/migration | NOT RUN | Only a metadata-check command is documented; no production volume was accessed. |
+
+### Remaining target acceptance
+
+On the private Linux/amd64 host, the user must build the image, verify the key
+initializer's actual `futu` ownership and OpenD key acceptance, exercise API
+connectivity from host loopback and one explicitly trusted same-network test
+container, and observe outbound login behavior separately in bridge and (only
+if needed) host mode. Authentication, verification codes, and SDK checks remain
+user-only. A bridge failure must be recorded rather than silently changing the
+default or claiming host networking is universally required.
+
+## Phase 3 — download, build, and version hardening
+
+Phase baseline: HEAD `74170f34e570fcdcac9349e0ecfb8e4b5fb963af`
+plus the existing uncommitted Phase 1 and Phase 2 changes. They were preserved.
+
+### Changes
+
+- Replaced the permissive downloader with a strict HTTPS-only wrapper. It uses
+  verified TLS, HTTPS-only redirects, HTTP failure handling, connect/overall
+  timeouts, two retries (three attempts maximum), and a finite retry-time cap.
+  Downloads stay in a restrictive same-directory temporary file; SHA-256 and
+  versioned archive paths are checked before an atomic rename. Failure removes
+  the temporary file and leaves any prior accepted target unchanged.
+- Added a separate `--report-tofu` path for the publisher-checksum gap. It
+  validates a temporary download and reports a candidate digest without
+  installing the artifact, while stating that the result is not publisher
+  authenticity proof. Normal download/build paths still require a previously
+  recorded digest.
+- Extended `opend_version.json` to identify the version source, exact stable
+  artifact URL/name/platform, integrity state, and pinned amd64 base manifests.
+  The actual OpenD SHA-256 is `null`; it was not fabricated. Version discovery
+  preserves a lock only for the exact unchanged artifact and deliberately
+  invalidates it on a version bump. The documentation synchronizer also keeps
+  `.env.example`'s digest input aligned without inventing a value.
+- Reduced Dockerfile and publish CI to one Ubuntu-based `linux/amd64` runtime
+  target. Removed `BASE_IMG`, CentOS 7 stages/matrix, hidden version defaults,
+  and floating `stable` publication. Both base images are pinned by amd64
+  manifest digest; Compose explicitly selects `platform: linux/amd64` and
+  `target: runtime` and refuses an unset artifact lock.
+- Pinned the application account to UID/GID `10001:10001`. OpenD lives under
+  root-owned `/opt/futu-opend`, wrappers under `/usr/local/bin`, and the template
+  under `/etc/futu-opend`; `/bin` is not recursively reassigned. The named state
+  volume and mount path are unchanged, and no existing volume was inspected or
+  migrated.
+- Replaced the implicit `procps`/`pgrep` runtime dependency with a `/proc/1/comm`
+  PID-1 liveness check. This still proves only process shape, not readiness.
+- Retained pinned Ubuntu 18.04 only as the reproducible compatibility baseline
+  for Futu's Ubuntu 18.04 package. Official lifecycle material confirms it is
+  outside standard support. Migration to a supported runtime was not attempted
+  without the actual binary, dependency inspection, help output, and
+  no-credential startup evidence.
+- Updated README, `.env.example`, agent notes, E2E coverage notes, Compose tests,
+  version scripts/tests, and publish workflow. Deployment guidance distinguishes
+  OpenD version/artifact hash, base manifests, source commit, and the final
+  registry image digest, and uses only explicit version tags before digest pinning.
+
+### Checks
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| Shell syntax for startup, key, download, build-config, and Compose scripts | PASSED | All eight shell files parsed with the available Bash. |
+| `bash script/start.test.sh` | PASSED | 19 fake-OpenD wrapper assertions; no binary, credentials, network, or login. |
+| `bash script/init-key.test.sh` | PASSED | 8 fake-key assertions; only temporary test material. |
+| `bash script/download_futu_opend.test.sh` | PASSED | 12 local-fixture/fake-curl assertions, including HTTP 22, timeout 28, digest mismatch, illegal inputs, invalid/root-invalid archives, TOFU isolation, atomic preservation, and cleanup. |
+| `bash script/build_config.test.sh` | PASSED | 4 static assertions align artifact metadata, both base manifests, single target/no fallback, UID/layout, architecture, and version-only CI tag policy. |
+| `bash script/compose.test.sh` | PASSED | 7 effective-model assertions; missing digest fails closed, both files select `runtime`/amd64, and prior network/key checks remain green. |
+| `script/update_docs_version.test.js` | PASSED | 19 assertions passed with bundled Node; includes digest sync/read validation. |
+| `script/check_version.test.js` | NOT RUN | Test process could not load the declared `jsdom` dependency because project dependencies are not installed in this environment. Source syntax passed; no network install was performed. |
+| JavaScript syntax checks | PASSED | Both version scripts and both unit-test files parse with bundled Node. |
+| Official OpenD archive download / SHA-256 lock | NOT RUN | DNS resolution failed inside the sandbox; no sandbox bypass was used. No publisher checksum/signature was found, so the lock remains explicitly `null`. |
+| Docker build / no-credential smoke / image inspection | NOT RUN | Docker daemon is unavailable and the artifact is intentionally unlocked. CI now gates exact version, SHA, amd64 architecture, UID/GID, label, help parameters, and fake wrapper startup once locked. |
+| Ubuntu 18.04 binary dependency/startup compatibility | NOT RUN | Requires the exact locked official binary in Linux/amd64; build success alone will not satisfy this check. |
+| Ubuntu 22.04-or-newer runtime migration | NOT RUN | Requires `ldd`/loader/library review plus help and no-credential runtime behavior before changing the compatibility baseline. |
+| Byte-for-byte repeat build and final registry digest | NOT RUN | Requires two clean Linux/amd64 builds and, for a registry digest, an explicitly authorized publish/pull workflow. |
+| Real login, remembered-state, SDK/API, and network acceptance | NOT RUN | User-only private-terminal acceptance; unchanged from prior phases. |
+
+### Remaining target acceptance
+
+An operator must first perform the documented TOFU review against the fixed
+official HTTPS origin and commit the accepted artifact SHA-256. On a private
+Linux/amd64 builder, build twice from the same source commit and inputs, inspect
+architecture `amd64`, user `10001:10001`, OpenD version label, binary help and
+dependencies, and run the no-credential wrapper smoke gate. Only after that may
+the user perform the separate real-login/network acceptance. If a version bump
+occurs, automation intentionally clears the prior artifact lock; a new review is
+required. A final image digest exists only after producing/publishing the exact
+accepted image and must never be guessed from the OpenD or base-image digest.
+
+## Phase 4 — layered tests and trustworthy CI gates
+
+Phase baseline: HEAD `74170f34e570fcdcac9349e0ecfb8e4b5fb963af`
+plus the existing uncommitted Phase 1–3 changes. All were preserved.
+
+### Changes
+
+- Defined three separate commands and evidence boundaries in `docs/E2E.md`:
+  `test:layer1` for unit/config, `test:smoke` for an isolated no-credential
+  image/container check, and `test:live` for user-enabled encrypted read-only
+  acceptance. The legacy E2E skip remains visibly distinct.
+- Extended Layer 1 regression coverage for fake password/MD5/private-key
+  output leakage, configuration-aware health checks, custom API port alignment,
+  live-check encryption/timeout/cleanup behavior through a fake SDK, and CI
+  permission/gate policy. Layer 1 never loads `.env`, contacts Futu, or invokes
+  the Docker daemon.
+- Added `container_smoke.test.sh`. It reads only the public version lock, creates
+  unique image/container/volume names, bounds build/run/stop waits, uses
+  `--network none` for binary/help and runtime checks, verifies architecture,
+  UID/GID, version label and required files, and drives startup/TERM with a
+  mounted fake OpenD. Cleanup removes only resources whose successful creation
+  was recorded by that invocation. No Compose project or existing volume is used.
+- Added `live_readonly.py`. With no opt-in it prints `SKIPPED` before importing
+  the SDK. With `RUN_LIVE_TESTS=1`, it validates prerequisites, enables SDK
+  encryption and sets the matching key before creating `OpenQuoteContext`,
+  applies separate connection/request timeouts, calls only
+  `get_global_state()`, requires `qot_logined=true`, optionally requires
+  `trd_logined=true`, suppresses SDK exception details, and closes the context
+  in `finally`. It ignores market-state values, so market closure is not failure.
+- Split PR CI from publishing. `ci.yml` has only `contents: read`, persists no
+  checkout credential, exposes no publish secret, always runs Layer 1, and runs
+  Layer 2 for every non-docs-only PR. Its `always()` gate explicitly rejects
+  upstream failure/cancellation/missing classification and accepts `skipped`
+  only for the enumerated documentation paths.
+- `publish.yml` has no PR trigger. Pushes to trusted `main` and explicit manual
+  dispatch rerun Layer 1 and Layer 2 against the same explicit image tag;
+  registry authentication and push occur only afterward. Public CI never runs
+  Layer 3 and no workflow uploads environment, key, state, or log artifacts.
+- Reworked version automation to use the repository `GITHUB_TOKEN`, minimum
+  write permissions needed to push a proposal branch and open a PR, and no PAT,
+  auto-merge, publish, deploy, or existing-PR deletion. Repository settings may
+  still prevent PR creation or suppress follow-on events; those limitations are
+  documented rather than bypassed.
+- Pinned every external Action reference to a release-verified full commit:
+  `actions/checkout` v4.2.2 at
+  `11bd71901bbe5b1630ceea73d27597364c9af683` and `actions/setup-node` v4.4.0
+  at `49933ea5288caeca8642d1e84afbd3f7d6820020`.
+
+### Checks
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| `bash script/layer1.test.sh` | PASSED | 73 shell/config assertions: startup 19, key 8, download 12, build model 4, Compose 7, fake live SDK 10, CI policy 6, gate outcomes 7. No Docker daemon, networked OpenD, credentials, or real key. |
+| Signal-test stabilization | FAILED, then PASSED | One full Layer 1 run exceeded the old one-second fake-process readiness window. The test now waits up to five seconds for an explicit post-trap marker; standalone startup and the following full Layer 1 rerun both passed. No production code was relaxed. |
+| Legacy-value and key-content redaction | PASSED | Fake password, fake MD5 and fake private-key canaries were absent from captured stdout/stderr. |
+| Custom API-port consistency | PASSED | Rendered Compose aligned runtime port, host-loopback target/publication and health command; fake SDK received client port `12345`. |
+| Layer 3 default command | SKIPPED | `RUN_LIVE_TESTS` was not enabled; the script reports the explicit skip before SDK import. |
+| Layer 3 fake-SDK unit test | PASSED | 10 checks cover quote-only success, optional trade condition, encryption, custom port, key permissions, redaction, missing prerequisites, both timeouts, `close()`, and close failure. This is not a real login result. |
+| `script/container_smoke.test.sh` | FAILED (preflight) | Docker daemon was unavailable. No image, container, or volume was created; actual build/help/stop assertions were therefore NOT RUN. |
+| Node version-unit suite | NOT RUN | The workspace still lacks installed `jsdom`; CI installs locked dependencies with `npm ci` before `test:layer1`. JavaScript source syntax is checked separately. |
+| Workflow policy regression | PASSED | 6 static checks cover full Action SHAs, PR read-only/no-publish policy, exact skip gate, publish ordering, review-only updater, and no sensitive artifacts. |
+| `bash script/ci_gate.test.sh` | PASSED | 7 outcome combinations prove required success, the exact docs-only skip, and rejection of upstream failure, failure, cancellation, unexpected success, and missing classification. |
+| GitHub-hosted PR and publish workflows | NOT RUN | Workflow files were validated locally only; no remote run, token use, push, package publication, or repository setting change occurred. |
+| Real encrypted `get_global_state()` | NOT RUN | Deliberately user-only. No password, OTP, login cache, private key, or account connection was accessed. |
+| `qot_logined` / optional `trd_logined` on a real account | NOT RUN | Fake SDK results do not count. The user must run Layer 3 and report the actual result. |
+
+### Remaining acceptance
+
+After the artifact SHA-256 is reviewed and locked, a Linux/amd64 CI or private
+builder must run Layer 2 and report its image build/help/controlled-stop result.
+Separately, the user may initialize/login in a private terminal and explicitly
+run Layer 3 with the same RSA key. Only that real SDK result can establish quote
+login and, if requested, trade-server login. Neither result establishes trading
+unlock, order capability, paid entitlements, or permanent authentication.

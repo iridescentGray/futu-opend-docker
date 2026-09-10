@@ -5,6 +5,7 @@ const os = require('node:os')
 const path = require('node:path')
 const {
   applyVersionUpdates,
+  readVersionConfig,
   readStableVersion,
   syncFile,
   MARKER
@@ -45,6 +46,18 @@ describe('applyVersionUpdates — pattern based', () => {
     assert.strictEqual(
       out,
       `set FUTU_OPEND_VER=${STABLE} then unset FUTU_OPEND_VER=${STABLE}`
+    )
+  })
+
+  it('synchronizes the artifact digest without inventing a missing lock', () => {
+    const digest = 'b'.repeat(64)
+    assert.strictEqual(
+      applyVersionUpdates('FUTU_OPEND_SHA256=', STABLE, digest),
+      `FUTU_OPEND_SHA256=${digest}`
+    )
+    assert.strictEqual(
+      applyVersionUpdates(`FUTU_OPEND_SHA256=${digest}`, STABLE, null),
+      'FUTU_OPEND_SHA256='
     )
   })
 })
@@ -132,6 +145,32 @@ describe('readStableVersion', () => {
     const file = path.join(dir, 'opend_version.json')
     fs.writeFileSync(file, JSON.stringify({ stableVersion: '1.2' }))
     assert.throws(() => readStableVersion(file), /must match X\.Y\.Z/)
+  })
+})
+
+describe('readVersionConfig', () => {
+  it('returns the stable version and a valid locked digest', (t) => {
+    const dir = makeTmpDir(t)
+    const file = path.join(dir, 'opend_version.json')
+    const digest = 'c'.repeat(64)
+    fs.writeFileSync(file, JSON.stringify({
+      stableVersion: STABLE,
+      stableArtifact: { sha256: digest }
+    }))
+    assert.deepStrictEqual(readVersionConfig(file), {
+      stableVersion: STABLE,
+      stableSha256: digest
+    })
+  })
+
+  it('rejects a malformed artifact digest', (t) => {
+    const dir = makeTmpDir(t)
+    const file = path.join(dir, 'opend_version.json')
+    fs.writeFileSync(file, JSON.stringify({
+      stableVersion: STABLE,
+      stableArtifact: { sha256: 'not-a-digest' }
+    }))
+    assert.throws(() => readVersionConfig(file), /sha256/)
   })
 })
 

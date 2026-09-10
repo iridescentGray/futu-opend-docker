@@ -3,345 +3,357 @@
 [![Docker Pulls](https://img.shields.io/github/package-json/v/manhinhang/futu-opend-docker)](https://github.com/manhinhang/futu-opend-docker/packages)
 [![GitHub](https://img.shields.io/github/license/manhinhang/futu-opend-docker)](https://github.com/manhinhang/futu-opend-docker/blob/main/LICENSE)
 
-lightweight futu opend docker
+Docker Compose packaging for one personal Linux/amd64 command-line FutuOpenD
+instance.
 
-> **Running on Kubernetes?** See [`k8s/README.md`](k8s/README.md) for a
-> reference deployment plus first-run SMS/CAPTCHA delivery via `kubectl`.
->
-> **Using a coding agent (Claude Code, opencode, codex, …)?** This repo
-> ships an agent skill at [`skills/futu-opend/SKILL.md`](skills/futu-opend/SKILL.md)
-> that orchestrates install, 2FA delivery, and day-2 ops (restart,
-> re-login, version bump, teardown) for compose / `docker run` / k8s.
-> Agents that read `AGENTS.md` or `CLAUDE.md` will pick it up automatically.
+## Reproducible build and artifact lock
 
-## Pull the docker image from GitHub Container Registry
+The supported build is one Ubuntu-based `linux/amd64` target named `runtime`.
+CentOS 7 is no longer a default or maintained release path. The official OpenD
+package is still labelled for Ubuntu 18.04, so the runtime retains a pinned
+Ubuntu 18.04 amd64 image as a compatibility baseline even though that release
+is outside standard Ubuntu support. Moving the binary to Ubuntu 22.04 or newer
+requires dependency inspection and no-credential startup validation on
+Linux/amd64; a successful image build alone is not acceptance.
 
-```bash
-# default base image is ubuntu
-docker pull ghcr.io/manhinhang/futu-opend-docker:ubuntu-stable
-```
+`opend_version.json` is the build source of truth. Its current OpenD artifact
+SHA-256 is intentionally `null`: no publisher signature or checksum for this
+artifact was found, and the artifact could not be downloaded in this review
+environment. Consequently the default Compose build and publish CI fail closed
+until a human reviews and records a first-trust value. Do not copy a digest
+from an unreviewed third party.
 
-## container tags pattern
-
-| Base Image | Tags                   |
-| ---------- | ---------------------- |
-| ubuntu     | ubuntu-stable          |
-| ubuntu     | ubuntu-beta            |
-| ubuntu     | ubuntu-{opend_version} |
-| centos     | centos-stable          |
-| centos     | centos-beta            |
-| centos     | centos-{opend_version} |
-
-## Create a container from the image and run it
-
-> Generate your own RSA key
->
-> ```bash
-> openssl genrsa -out futu.pem 1024
-> ```
+On a private machine with network access, the maintainer can download from the
+fixed official HTTPS origin into a temporary file, validate its versioned
+archive paths, and print a candidate digest without installing the file:
 
 ```bash
-# Compute the password MD5 so plaintext never lands in your shell history.
-FUTU_ACCOUNT_PWD_MD5=$(echo -n '<your_password>' | md5sum | awk '{print $1}')
-
-docker run -it --name futu-opend-docker \
--e FUTU_ACCOUNT_ID=<your_account_id> \
--e FUTU_ACCOUNT_PWD_MD5="$FUTU_ACCOUNT_PWD_MD5" \
--v $(pwd)/futu.pem:/.futu/futu.pem \
--v futu-opend-data:/home/futu/.com.futunn.FutuOpenD \
--p 11111:11111 \
--p 22222:22222 \
-ghcr.io/manhinhang/futu-opend-docker
+bash script/download_futu_opend.sh --report-tofu \
+  10.10.7008 Futu_OpenD_10.10.7008_Ubuntu18.04.tar.gz
 ```
 
-> `FUTU_ACCOUNT_PWD` (plaintext) is still accepted as a legacy fallback —
-> the container hashes it at runtime and emits a stderr deprecation warning.
-> Prefer `FUTU_ACCOUNT_PWD_MD5` to keep plaintext out of agent transcripts,
-> shared shell sessions, and `docker compose config` output.
->
-> The `futu-opend-data` named volume keeps FutuOpenD's login session across
-> container recreates so SMS verification isn't required on every restart.
-> See [Login session persistence](#login-session-persistence) for details.
->
-> **Port mappings**:
->
-> - `11111`: API port for FutuOpenD protocol
-> - `22222`: Telnet port for 2FA input (optional, but recommended for automation)
+Review the official release page/changelog, the HTTPS origin, archive contents,
+and the candidate digest. Recording that value under
+`stableArtifact.sha256`, changing `integrityStatus` to `tofu-reviewed`, and
+copying it to local `.env` as `FUTU_OPEND_SHA256` locks later downloads to the
+reviewed bytes. Computing a hash from this first download is trust on first use
+(TOFU), not publisher-authenticated provenance. Later matching checks prove
+consistency with that decision, not independent authenticity.
 
-### Input verification codes
-
-FutuOpenD may require two types of verification:
-
-1. **SMS verification code** - sent to your phone
-2. **Picture CAPTCHA** - downloaded to container
-
-You can input verification codes using either `docker attach` or telnet:
-
-#### Method 1: Using docker attach
-
-1. Attach to futu opend container
+After the lock is committed, build without any floating Dockerfile version:
 
 ```bash
-docker attach futu-opend
+docker build --platform linux/amd64 --target runtime \
+  --build-arg FUTU_OPEND_VER=10.10.7008 \
+  --build-arg FUTU_OPEND_SHA256="${FUTU_OPEND_SHA256:?not locked}" \
+  --tag futu-opend:ubuntu-10.10.7008 .
 ```
 
-1. Input verification code based on the type:
+The runtime user is explicitly `10001:10001`; application files stay
+root-owned under `/opt/futu-opend` rather than changing ownership of `/bin`.
+The existing `futu-opend-data` volume name and mount path are unchanged. If an
+older volume is not writable by UID/GID 10001, stop and design a reviewed,
+backed-up metadata migration; this project does not automatically chown or
+clear production state.
 
-**For SMS verification code:**
+These identifiers are separate and should be recorded together for an accepted
+deployment:
+
+- OpenD version: `10.10.7008` and its locked artifact SHA-256.
+- Base-image versions and amd64 manifest digests: `opend_version.json` and the
+  pinned `FROM` lines.
+- Project source: the exact Git commit used for the build.
+- Final image: a registry content digest produced after publishing the accepted
+  image.
+
+For long-term deployment, use the explicit version tag, inspect its registry
+digest, then pin that exact returned value in your private deployment config:
 
 ```bash
-input_phone_verify_code -code=<SMS_CODE>
+docker pull ghcr.io/OWNER/futu-opend-docker:ubuntu-10.10.7008
+docker image inspect --format '{{index .RepoDigests 0}}' \
+  ghcr.io/OWNER/futu-opend-docker:ubuntu-10.10.7008
+# Use the returned ghcr.io/...@sha256:<digest>; no digest is fabricated here.
 ```
 
-**For picture CAPTCHA:**
+Do not use `stable` or `latest` for unattended upgrades. On ARM/macOS, this is
+still an amd64 image and may run only through an operator-provided emulation
+environment. The project does not install binfmt, start privileged containers,
+or claim native arm64 support.
 
-First, copy the CAPTCHA image from container:
+## Supported login model
 
-```bash
-docker cp futu-opend:/home/futu/.com.futunn.FutuOpenD/F3CNN/PicVerifyCode.png ./PicVerifyCode.png
-```
+The wrapper supports OpenD `10.10.7008`. `FUTU_LOGIN_MODE` is this project's
+switch, not a native OpenD environment variable:
 
-Then view the image and input the code:
+- `interactive`: user-only initialization or reauthentication in a private
+  attached terminal.
+- `remember`: routine service startup with the official `-login_account`,
+  optional `-area_code`, and `-login_by_remember=1` arguments.
 
-```bash
-input_pic_verify_code -code=<CAPTCHA_CODE>
-```
+OpenD 10.10.7008 removed account/password settings from XML. Legacy
+`FUTU_ACCOUNT_PWD` and `FUTU_ACCOUNT_PWD_MD5` values are rejected without
+printing them. The wrapper never automates a password or verification code.
 
-#### Method 2: Using telnet (recommended for automation)
+References:
 
-Connect to the FutuOpenD telnet port (22222) and send the command:
+- [Command Line OpenD](https://openapi.futunn.com/futu-api-doc/en/opend/opend-cmd.html)
+- [OpenD 10.10.7008 changelog](https://openapi.futunn.com/futu-api-doc/en/changelog/changelog.html)
+- [Encrypted communication](https://openapi.futunn.com/futu-api-doc/en/ftapi/protocol.html)
+- [SDK encryption configuration](https://openapi.futunn.com/futu-api-doc/en/ftapi/init.html)
 
-**For SMS verification code:**
+## Prepare configuration and key
 
-```bash
-# Interactive
-telnet localhost 22222
-input_phone_verify_code -code=<SMS_CODE>
-
-# One-liner
-echo "input_phone_verify_code -code=<SMS_CODE>" | telnet localhost 22222
-```
-
-**For picture CAPTCHA:**
-
-First, extract the CAPTCHA image:
-
-```bash
-docker cp futu-opend:/home/futu/.com.futunn.FutuOpenD/F3CNN/PicVerifyCode.png ./PicVerifyCode.png
-```
-
-Then input the code via telnet:
-
-```bash
-echo "input_pic_verify_code -code=<CAPTCHA_CODE>" | telnet localhost 22222
-```
-
-**Automation script example:**
-
-```bash
-#!/bin/bash
-# Auto-input SMS verification code
-{
-  sleep 2
-  echo "input_phone_verify_code -code=$1"
-  sleep 1
-} | telnet localhost 22222
-```
-
-```bash
-#!/bin/bash
-# Auto-input picture CAPTCHA
-# First extract and display the image, then input the code
-docker cp futu-opend:/home/futu/.com.futunn.FutuOpenD/F3CNN/PicVerifyCode.png /tmp/PicVerifyCode.png
-# Display image (choose your preferred viewer)
-open /tmp/PicVerifyCode.png  # macOS
-# xdg-open /tmp/PicVerifyCode.png  # Linux
-# start /tmp/PicVerifyCode.png  # Windows
-
-read -p "Enter CAPTCHA code: " captcha_code
-{
-  sleep 2
-  echo "input_pic_verify_code -code=$captcha_code"
-  sleep 1
-} | telnet localhost 22222
-```
-
-## Run in docker compose
-
-Copy the tracked `.env.example` template to `.env`, then edit it (auto-loaded by `docker compose`):
+Copy the tracked template and edit only the ignored local `.env`:
 
 ```bash
 cp .env.example .env
 ```
 
-| Environment Variable      | Description                                                                                                                                                      |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| FUTU_ACCOUNT_ID           | Futu account ID                                                                                                                                                  |
-| FUTU_ACCOUNT_PWD_MD5      | **Preferred.** Futu account password MD5 hash. Compute with `echo -n '<pwd>' \| md5sum \| awk '{print $1}'`.                                                     |
-| FUTU_ACCOUNT_PWD          | **Deprecated.** Plaintext password — hashed at runtime by `start.sh`; ignored if `FUTU_ACCOUNT_PWD_MD5` is set. Triggers a stderr deprecation warning when used. |
-| FUTU_OPEND_IP             | OpenD bind address inside the container (default: `0.0.0.0`)                                                                                                     |
-| FUTU_OPEND_PORT           | Futu OpenD API Port in container (default: 11111)                                                                                                                |
-| FUTU_OPEND_TELNET_PORT    | Futu OpenD Telnet Port (default: 22222)                                                                                                                          |
-| FUTU_OPEND_WEBSOCKET_PORT | Enable WebSocket listener on this port (default: disabled).                                                                                                      |
-| FUTU_OPEND_WEBSOCKET_IP   | WebSocket bind address (default: 0.0.0.0 when FUTU_OPEND_WEBSOCKET_PORT is set, else not applied)                                                                |
-| FUTU_OPEND_VER            | OpenD version to build (compose `build.args`). Defaulted in `.env.example`; mirrors `opend_version.json`.                                                        |
+Set `FUTU_ACCOUNT_ID`. For phone-number remembered login, set the phone number
+as the account and a separate country code such as
+`FUTU_ACCOUNT_AREA_CODE=+86`, matching the official command-line example.
 
-> **Note**: the compose file uses `network_mode: host` (and `build.network: host`) so the container shares the host's network stack. No `ports:` mapping is needed; OpenD's listeners bind directly on the host. This avoids docker-bridge connectivity issues we hit with Futu's auth servers.
+If no key exists, generate it yourself in a private terminal. OpenD's official
+protocol documentation specifies an unencrypted PKCS#1 RSA private key and
+documents 1024-bit operation; this keeps the project's existing algorithm and
+size:
 
 ```bash
-docker compose up -d
+openssl genrsa -traditional -out futu.pem 1024
+chmod 0600 futu.pem
 ```
 
-### Login session persistence
+Do not overwrite an existing key: local SDK clients must use the same private
+key as OpenD. The one-shot `futu-key-init` service mounts the host key read-only,
+checks that it is a regular readable mode-`0600` PKCS#1 PEM, and copies it into
+the `futu-opend-key` volume as mode `0400` owned by the image's actual `futu`
+UID/GID. The main OpenD service runs as `futu` and mounts that key volume
+read-only. Key initialization does not generate or display key material and has
+`restart: "no"` plus no network namespace.
 
-Mounting the `futu-opend-data` named volume at
-`/home/futu/.com.futunn.FutuOpenD` lets FutuOpenD's runtime state —
-device-whitelist token, login cache, captcha PNG, and other session
-metadata — survive container recreate. The compose stack attaches it
-automatically; bare `docker run` users add
-`-v futu-opend-data:/home/futu/.com.futunn.FutuOpenD`. With the volume in
-place, SMS verification is **only required when the volume is empty**
-(first ever run, account switch, or explicit wipe).
+For Compose, `FUTU_OPEND_RSA_FILE_PATH` must be a direct child of `/.futu`
+(the default is `/.futu/futu.pem`) so it remains inside the prepared key volume.
 
-**Caveat — Futu-side whitelist lifetime**: Futu's server-side device
-whitelist has a short shelf life (hours to days). When Futu invalidates
-the whitelist, the next login will prompt for SMS again regardless of
-what's in the volume. The volume eliminates _Docker-recreate-induced_
-fresh-device churn; it does not extend Futu's own whitelist policy.
+The existing `futu-opend-data` session volume is unchanged.
 
-**Image version requirement**: this volume needs an image built from a
-Dockerfile that pre-creates `/home/futu/.com.futunn.FutuOpenD` with
-`futu` ownership (introduced alongside this volume). Older published
-images leave the mount point owned by `root`, and FutuOpenD (running as
-`futu`) will EACCES on first write. Run `docker compose pull` (or
-`docker compose build`) when adopting this change.
+## Default network: bridge
 
-**Wipe the volume** to force a fresh login. The volume's actual name
-depends on how you launched the stack (compose namespaces it by project
-directory; `docker run` does not):
+[`docker-compose.yaml`](docker-compose.yaml) is a complete standalone default:
+
+- ordinary Compose bridge networking;
+- the default network is explicitly not internal, so OpenD can make outbound
+  connections;
+- OpenD binds API to its container interface (`0.0.0.0` by default);
+- only the API port is published, fixed to host `127.0.0.1`;
+- Telnet and WebSocket are absent from generated XML unless explicitly enabled.
+
+Containers joined to this Compose network can connect directly to
+`futu-opend:<FUTU_OPEND_PORT>` and must be treated as trusted API clients. Host
+loopback publication does not isolate OpenD from malicious same-network
+containers.
+
+Render and review the effective model in a private terminal:
 
 ```bash
-# Compose users — wipes everything in one step:
-docker compose down -v
-
-# Compose users — manual, while the stack is down:
-docker volume rm futu-opend-docker_futu-opend-data
-
-# Bare `docker run` users:
-docker rm -f futu-opend-docker
-docker volume rm futu-opend-data
+docker compose --env-file .env -f docker-compose.yaml config
 ```
 
-Run `docker volume ls` if you're not sure which volume name applies.
+This can display the configured account identifier, so do not paste its output
+into shared logs.
 
-Wipe when:
+### First initialization
 
-- Switching to a different `FUTU_ACCOUNT_ID`.
-- After upgrading FutuOpenD across major versions.
-- Diagnosing login loops that don't respond to credential rotation.
-
-### Healthcheck
-
-The container includes a healthcheck that monitors the FutuOpenD process:
-
-| Setting      | Value             | Description                        |
-| ------------ | ----------------- | ---------------------------------- |
-| test         | `pgrep FutuOpenD` | Check FutuOpenD process is running |
-| interval     | 30s               | Check every 30 seconds             |
-| timeout      | 600s              | Timeout for each check             |
-| retries      | 3                 | Mark unhealthy after 3 failures    |
-| start_period | 180s              | Grace period for container startup |
-
-Check container health status:
+Stop the routine container without deleting volumes, then run the same service
+with a real terminal. Compose starts the key initializer dependency first:
 
 ```bash
-docker ps --format "table {{.Names}}\t{{.Status}}"
+docker compose --env-file .env -f docker-compose.yaml down
+docker compose --env-file .env -f docker-compose.yaml run --rm --interactive \
+  -e FUTU_LOGIN_MODE=interactive \
+  futu-opend
 ```
 
-Then enter verification codes when prompted:
+Complete OpenD's prompts yourself and select its password-remembrance option if
+you want later `remember` starts. After OpenD reports login success, stop the
+foreground process normally. Neither a directory nor the wrapper lock file is
+treated as proof of login. This `run --rm` initialization container is one-shot
+and has no automatic restart loop.
 
-**Using docker attach:**
+### Routine startup
 
 ```bash
-docker attach futu-opend
-
-# For SMS verification
-input_phone_verify_code -code=<SMS_CODE>
-
-# For picture CAPTCHA (extract image first)
-docker cp futu-opend:/home/futu/.com.futunn.FutuOpenD/F3CNN/PicVerifyCode.png ./PicVerifyCode.png
-input_pic_verify_code -code=<CAPTCHA_CODE>
+docker compose --env-file .env -f docker-compose.yaml up -d
+docker compose --env-file .env -f docker-compose.yaml logs -f futu-opend
 ```
 
-**Using telnet** (see [Input verification codes](#input-verification-codes) section for full details):
+The routine service has no stdin/TTY and uses `restart: "on-failure:3"`. This
+gives a short bounded retry for unexpected non-zero exits but avoids an
+unlimited authentication loop. It does not guarantee automatic recovery after
+a host reboot; restart behavior also depends on the Docker daemon startup
+policy. An operator-requested stop is not treated as a failure restart.
+
+If remembered state is missing or expired, use the same non-destructive
+initialization commands again. Do not delete, rename, or migrate the state
+volume, and do not retry indefinitely.
+
+## Explicit compatibility network: host
+
+[`docker-compose.host.yaml`](docker-compose.host.yaml) is a second complete
+standalone file. It is not an override. Never pass both Compose files in one
+command.
+
+The host-mode OpenD service has `network_mode: host`, has no `ports` section,
+and binds API to `FUTU_OPEND_HOST_IP=127.0.0.1` by default. Use the same project
+directory and do not supply a different project name if you expect it to reuse
+the existing state and key volumes.
+
+Review and run it only with the host file named explicitly:
 
 ```bash
-# For SMS verification
-echo "input_phone_verify_code -code=<SMS_CODE>" | telnet localhost 22222
-
-# For picture CAPTCHA
-docker cp futu-opend:/home/futu/.com.futunn.FutuOpenD/F3CNN/PicVerifyCode.png ./PicVerifyCode.png
-echo "input_pic_verify_code -code=<CAPTCHA_CODE>" | telnet localhost 22222
+docker compose --env-file .env -f docker-compose.host.yaml config
+docker compose --env-file .env -f docker-compose.host.yaml down
+docker compose --env-file .env -f docker-compose.host.yaml run --rm --interactive \
+  -e FUTU_LOGIN_MODE=interactive \
+  futu-opend
+docker compose --env-file .env -f docker-compose.host.yaml up -d
 ```
 
-## Build locally
+Host mode is retained only as a compatibility fallback. Default bridge-mode
+authentication and host-mode authentication have not been exercised in this
+hardening work; real login remains a user-only verification.
 
-> **Note**: Ubuntu builds require version 9.4.x or later with Ubuntu 18.04 base image. Ubuntu 16.04 builds are no longer provided by Futu.
+## Optional listeners
 
-- Use ubuntu as base image
+For both optional listener ports, unset and explicitly empty have the same
+meaning: the corresponding elements are omitted from runtime XML and the
+feature is disabled.
+
+```dotenv
+FUTU_OPEND_TELNET_PORT=
+FUTU_OPEND_WEBSOCKET_PORT=
+```
+
+Telnet has its own bind address. To opt in locally:
+
+```dotenv
+FUTU_OPEND_TELNET_IP=127.0.0.1
+FUTU_OPEND_TELNET_PORT=22222
+```
+
+In bridge mode this loopback address is local to the OpenD container and is not
+published to the host. Setting it to `0.0.0.0` makes it reachable to trusted
+containers on the Compose network, but it is still not host-published by the
+provided file. In host mode keep it on `127.0.0.1`.
+
+WebSocket is likewise disabled by default and never host-published by the
+bridge file. Non-local WebSocket/TLS configuration is intentionally not added
+in this phase; official documentation requires SSL for a non-local WebSocket
+listener.
+
+RSA protocol encryption applies to the OpenAPI connection only. It is not a
+claim that Telnet or WebSocket traffic is encrypted.
+
+## Liveness, readiness, shutdown, and logs
+
+The Compose healthcheck verifies the PID-1 name via `/proc` and confirms that
+the generated XML contains the configured API port. It proves process/config
+consistency only. It does not prove login success, remembered-session validity,
+API readiness, encryption negotiation, or an SDK round trip. Docker does not
+restart a container merely because health becomes `unhealthy`; the bounded
+restart policy applies when PID 1 exits non-zero.
+
+The service gives `SIGTERM` up to 30 seconds before forced termination. The
+wrapper uses `exec`, so OpenD is PID 1 and receives the signal directly. Actual
+OpenD monitor/daemon and graceful-state behavior still require Linux/amd64
+runtime verification.
+
+The `json-file` log driver is bounded to three 10 MiB files. No read-only root
+filesystem, privileged mode, broad capability changes, firewall changes, or
+daemon changes are applied in this phase.
+
+Readiness must be established separately with an SDK connection and actual
+OpenD result, not container health alone.
+
+## SDK connection examples
+
+Official SDK encryption requires OpenD and the client to use the same private
+key and enables encryption before creating the context.
+
+Local SDK on the Docker host:
+
+```python
+from futu import OpenQuoteContext, SysConfig
+
+SysConfig.enable_proto_encrypt(True)
+SysConfig.set_init_rsa_file("/absolute/path/to/futu.pem")
+quote_ctx = OpenQuoteContext(host="127.0.0.1", port=11111)
+quote_ctx.close()
+```
+
+SDK in another trusted container on the same Compose default network:
+
+```python
+from futu import OpenQuoteContext, SysConfig
+
+SysConfig.enable_proto_encrypt(True)
+SysConfig.set_init_rsa_file("/run/secrets/futu.pem")
+quote_ctx = OpenQuoteContext(host="futu-opend", port=11111)
+quote_ctx.close()
+```
+
+Mount the same host key read-only at `/run/secrets/futu.pem` in that client
+container, and ensure that client's actual UID can read it without broadening
+the host file beyond `0600` (use an equivalent UID-aware secret staging step
+when needed). Do not copy it into an image. If `FUTU_OPEND_PORT` changes,
+update the SDK port; the provided Compose file updates both the container port
+and host-loopback publication together.
+
+These examples perform an encrypted InitConnect when run against a ready
+OpenD. They are documentation only and were not executed here.
+
+## Existing state-volume metadata
+
+This phase does not inspect or change existing session data. A user may perform
+a metadata-only check while the service is stopped:
 
 ```bash
-docker build -t futu-opend-docker --build-arg FUTU_OPEND_VER=10.10.7008 --build-arg BASE_IMG=ubuntu .
+docker compose --env-file .env -f docker-compose.yaml down
+docker compose --env-file .env -f docker-compose.yaml run --rm --no-deps \
+  --user root --entrypoint stat futu-opend \
+  -c '%u:%g %a %F' /home/futu/.com.futunn.FutuOpenD
 ```
 
-- Use centos as base image
+If ownership does not match the image's `futu` user, stop and prepare a
+reviewed, backed-up migration plan. Do not recursively chown or clear a
+production volume as an automatic fix.
+
+## Layered tests
 
 ```bash
-docker build -t futu-opend-docker --build-arg FUTU_OPEND_VER=10.10.7008 --build-arg BASE_IMG=centos .
+# Layer 1: no Docker daemon, credentials, or networked OpenD
+npm ci
+npm run test:layer1
+
+# Layer 2: isolated no-credential image/container smoke
+npm run test:smoke
+
+# Layer 3 default: explicit SKIPPED, never run by public CI
+npm run test:live
+
+# Layer 1 shell/config subset when Node dependencies are unavailable
+npm run test:offline
 ```
 
-## Troubleshooting
-
-### Download failures
-
-If you encounter download failures during build:
-
-1. **Network issues**: The download script includes automatic retry logic (3 attempts)
-2. **Version compatibility**: Ensure you're using a version that has Ubuntu 18.04 builds (9.4.x or later)
-3. **Check available versions**: Visit [Futu OpenD download page](https://www.futunn.com/en/download/OpenAPI)
-
-### Container startup issues
-
-If the container fails to start:
-
-1. **RSA key**: Ensure `futu.pem` exists and is properly mounted at `/.futu/futu.pem`
-2. **Environment variables**: Verify `FUTU_ACCOUNT_ID` and either `FUTU_ACCOUNT_PWD_MD5` (preferred) or the deprecated `FUTU_ACCOUNT_PWD` are set
-3. **Verification required**: First run may require verification codes
-4. **Stale session state**: if you've changed accounts or upgraded OpenD across major versions, wipe the data volume — see [Login session persistence](#login-session-persistence).
-
-### Verification codes
-
-FutuOpenD may prompt for two types of verification:
-
-1. **SMS verification code** (`input_phone_verify_code`)
-   - Sent to your registered phone number
-   - Input via docker attach or telnet
-
-2. **Picture CAPTCHA** (`input_pic_verify_code`)
-   - Downloaded to `/home/futu/.com.futunn.FutuOpenD/F3CNN/PicVerifyCode.png` inside container
-   - Extract with: `docker cp futu-opend:/home/futu/.com.futunn.FutuOpenD/F3CNN/PicVerifyCode.png ./PicVerifyCode.png`
-   - View the image and input the code
-
-**Tip**: Use telnet method for automation - see [Input verification codes](#input-verification-codes) section for details.
-
-## Local end-to-end test
-
-A `node:test` suite that takes credentials from `FUTU_ACCOUNT_ID` plus `FUTU_ACCOUNT_PWD_MD5` (preferred) or the deprecated `FUTU_ACCOUNT_PWD`, drives a real login (with SMS support), and asserts the OpenAPI WebSocket layer is up. Local-only — `npm run test:e2e`.
-
-See [docs/E2E.md](docs/E2E.md) for prerequisites, architecture, and troubleshooting.
+Layer 1 uses only fake values and temporary resources. Layer 2 builds the locked
+image and exercises a controlled fake PID 1, but still proves no login or
+business readiness. Layer 3 is the only SDK/login-state acceptance and requires
+the user to set `RUN_LIVE_TESTS=1` after private initialization; agents and
+public CI do not run it. See [`docs/E2E.md`](docs/E2E.md) for prerequisites,
+proof boundaries, timeouts, cleanup, and the optional trading-login condition.
 
 ## Disclaimer
 
-This project is not affiliated with [Futu Securities International (Hong Kong) Limited](https://www.futuhk.com/).
-
-Good luck and enjoy.
+This project is not affiliated with
+[Futu Securities International (Hong Kong) Limited](https://www.futuhk.com/).
+The original license and upstream attribution are preserved in `LICENSE`.

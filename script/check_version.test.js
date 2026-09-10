@@ -6,6 +6,7 @@ const {
   getAllVersion,
   isValidVersion,
   validateVersionData,
+  createVersionData,
   VersionFetchError
 } = require('./check_version.js')
 
@@ -160,6 +161,42 @@ describe('validateVersionData', () => {
   it('should throw for invalid beta version', () => {
     const data = { betaVersion: 'invalid', stableVersion: '9.6.5608' }
     assert.throws(() => validateVersionData(data), /Invalid beta version/)
+  })
+})
+
+describe('createVersionData', () => {
+  it('preserves a pre-recorded digest only for the identical artifact', () => {
+    const digest = 'a'.repeat(64)
+    const existing = {
+      stableVersion: '10.10.7008',
+      stableArtifact: {
+        fileName: 'Futu_OpenD_10.10.7008_Ubuntu18.04.tar.gz',
+        url: 'https://softwaredownload.futunn.com/Futu_OpenD_10.10.7008_Ubuntu18.04.tar.gz',
+        sha256: digest,
+        integrityStatus: 'tofu-reviewed'
+      },
+      baseImages: { runtime: { reference: 'ubuntu:18.04' } }
+    }
+    const result = createVersionData(
+      { betaVersion: null, stableVersion: '10.10.7008' },
+      existing
+    )
+    assert.strictEqual(result.stableArtifact.sha256, digest)
+    assert.strictEqual(result.stableArtifact.integrityStatus, 'tofu-reviewed')
+    assert.deepStrictEqual(result.baseImages, existing.baseImages)
+  })
+
+  it('invalidates the artifact lock when the discovered version changes', () => {
+    const result = createVersionData(
+      { betaVersion: null, stableVersion: '10.11.7108' },
+      {
+        stableVersion: '10.10.7008',
+        stableArtifact: { sha256: 'a'.repeat(64) }
+      }
+    )
+    assert.strictEqual(result.stableArtifact.sha256, null)
+    assert.strictEqual(result.stableArtifact.integrityStatus, 'unlocked-no-publisher-checksum')
+    assert.match(result.stableArtifact.fileName, /10\.11\.7108/)
   })
 })
 

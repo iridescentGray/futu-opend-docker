@@ -304,8 +304,10 @@ K8S_E2E_BACKEND=existing npm run test:k8s
 
 ```bash
 docker build -t futu-opend-docker:dev \
+  --platform linux/amd64 \
   --build-arg FUTU_OPEND_VER=$(jq -r .stableVersion opend_version.json) \
-  --target final-ubuntu-target .
+  --build-arg FUTU_OPEND_SHA256=$(jq -r .stableArtifact.sha256 opend_version.json) \
+  --target runtime .
 K8S_E2E_IMAGE=futu-opend-docker:dev npm run test:k8s
 ```
 

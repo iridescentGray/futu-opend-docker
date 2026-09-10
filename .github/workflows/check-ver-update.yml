@@ -1,88 +1,71 @@
-name: Check Futu OpenD Version Update
+name: Propose Futu OpenD version update
 
 on:
   schedule:
     - cron: "0 0 * * *"
   workflow_dispatch:
 
-jobs:
-  check-version:
-    name: Check Version
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-      contents: write
-      issues: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.AUTO_MERGE_TOKEN }}
+permissions:
+  contents: read
 
-      - name: Install node
-        uses: actions/setup-node@v4
+jobs:
+  propose-version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout trusted default branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "20"
-          cache: "npm"
+          cache: npm
 
-      - name: Install dependencies
+      - name: Install locked dependencies
         run: npm ci
 
-      - name: Install pre-commit
-        run: pip install pre-commit
+      - name: Check and synchronize version metadata
+        run: |
+          node script/check_version.js
+          node script/update_docs_version.js
 
-      - name: Check Futu OpenD Version
-        run: node script/check_version.js
-
-      - name: Sync version references
-        run: node script/update_docs_version.js
-
-      - name: Create Pull Request with Auto-Merge
+      - name: Create a review-only pull request
         env:
-          GH_TOKEN: ${{ secrets.AUTO_MERGE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-
           SYNC_FILES="opend_version.json $(node -e "console.log(require('./script/update_docs_version.js').TARGET_FILES.join(' '))")"
-          BRANCH=update-futu-opend-version
-
           if git diff --quiet -- $SYNC_FILES; then
-            echo "No version update needed"
+            echo 'No version update needed'
             exit 0
           fi
 
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-          EXISTING_PRS=$(gh pr list --head "$BRANCH" --state open --json number --jq ".[].number")
-          if [ -n "$EXISTING_PRS" ]; then
-            echo "Closing existing PR(s) on $BRANCH..."
-            echo "$EXISTING_PRS" | xargs -I {} gh pr close {} --delete-branch || true
+          VERSION=$(node -e "process.stdout.write(require('./opend_version.json').stableVersion)")
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo 'Invalid proposed version' >&2
+            exit 1
+          fi
+          BRANCH="update-futu-opend-${VERSION}"
+          if [ "$(gh pr list --head "$BRANCH" --state open --json number --jq 'length')" != 0 ]; then
+            echo "An open review PR already exists for ${BRANCH}"
+            exit 0
           fi
 
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git checkout -b "$BRANCH"
-          git add $SYNC_FILES
+          git add -- $SYNC_FILES
+          git commit -m "Propose Futu OpenD ${VERSION}"
+          git push --set-upstream origin "$BRANCH"
 
-          # The sync script rewrites version literals in place, so a bump that
-          # changes string length (10.9.6918 -> 10.10.7008) leaves markdown
-          # tables misaligned and the Lint workflow's prettier hook rejects the
-          # generated PR. Reformat with the same hooks that gate CI. Files must
-          # be staged first: pre-commit stashes unstaged changes and would drop
-          # the sync entirely. The first pass exits non-zero when it rewrites
-          # files; the second has to pass or the job fails without opening a PR.
-          pre-commit run --files $SYNC_FILES || true
-          git add $SYNC_FILES
-          pre-commit run --files $SYNC_FILES
+          gh pr create \
+            --title "Propose Futu OpenD ${VERSION}" \
+            --body "Automated version proposal. Human review and a new artifact-integrity lock are required. This workflow does not auto-merge, publish, or deploy." \
+            --base main \
+            --head "$BRANCH"
 
-          git commit -m "Update Futu OpenD version"
-          git push origin "$BRANCH"
-
-          PR_URL=$(gh pr create \
-            --title "🤖 Update Futu OpenD version" \
-            --body "Automated version update. This PR will be automatically merged once all CI/CD checks pass." \
-            --base main)
-          PR_NUMBER="${PR_URL##*/}"
-
-          echo "Pull Request created: $PR_URL"
-          echo "Enabling auto-merge for PR #$PR_NUMBER..."
-          gh pr merge "$PR_NUMBER" --auto --squash --delete-branch
+          echo 'Review PR created. No merge or deployment was requested.'

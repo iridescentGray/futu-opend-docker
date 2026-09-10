@@ -520,8 +520,10 @@ async function setupCluster () {
       throw new Error(
         `Image ${IMAGE} not found locally. Build it first:\n` +
         '  docker build -t ' + IMAGE + ' \\\n' +
+        '    --platform linux/amd64 \\\n' +
         '    --build-arg FUTU_OPEND_VER=$(jq -r .stableVersion opend_version.json) \\\n' +
-        '    --target final-ubuntu-target .\n' +
+        '    --build-arg FUTU_OPEND_SHA256=$(jq -r .stableArtifact.sha256 opend_version.json) \\\n' +
+        '    --target runtime .\n' +
         'Or override with K8S_E2E_IMAGE=<other-tag>.'
       )
     }

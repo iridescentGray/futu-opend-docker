@@ -10,6 +10,7 @@ const DEFAULT_RETRIES = 3
 const DEFAULT_RETRY_DELAY = 1000
 
 const VERSION_REGEX = /^\d+\.\d+\.\d+$/
+const SHA256_REGEX = /^[0-9a-f]{64}$/
 
 class VersionFetchError extends Error {
   constructor (message, cause) {
@@ -38,7 +39,50 @@ function validateVersionData (data) {
       `Invalid beta version: ${data.betaVersion}. Expected format: X.Y.Z or null`
     )
   }
+  if (data.stableArtifact) {
+    const expectedName = `Futu_OpenD_${data.stableVersion}_Ubuntu18.04.tar.gz`
+    const expectedUrl = `https://softwaredownload.futunn.com/${expectedName}`
+    if (data.stableArtifact.fileName !== expectedName || data.stableArtifact.url !== expectedUrl) {
+      throw new VersionFetchError('Stable artifact metadata does not match stableVersion')
+    }
+    if (
+      data.stableArtifact.sha256 !== null &&
+      !SHA256_REGEX.test(data.stableArtifact.sha256)
+    ) {
+      throw new VersionFetchError('Stable artifact sha256 must be lowercase hexadecimal or null')
+    }
+  }
   return true
+}
+
+function createVersionData (discovered, existing = {}) {
+  const version = discovered.stableVersion
+  const fileName = `Futu_OpenD_${version}_Ubuntu18.04.tar.gz`
+  const url = `https://softwaredownload.futunn.com/${fileName}`
+  const sameLockedArtifact =
+    existing.stableVersion === version &&
+    existing.stableArtifact?.fileName === fileName &&
+    existing.stableArtifact?.url === url &&
+    typeof existing.stableArtifact?.sha256 === 'string' &&
+    SHA256_REGEX.test(existing.stableArtifact.sha256)
+
+  return {
+    schemaVersion: 1,
+    versionSource: DEFAULT_URL,
+    betaVersion: discovered.betaVersion,
+    stableVersion: version,
+    stableArtifact: {
+      platform: 'linux/amd64',
+      distribution: 'Ubuntu18.04',
+      fileName,
+      url,
+      sha256: sameLockedArtifact ? existing.stableArtifact.sha256 : null,
+      integrityStatus: sameLockedArtifact
+        ? (existing.stableArtifact.integrityStatus || 'tofu-reviewed')
+        : 'unlocked-no-publisher-checksum'
+    },
+    baseImages: existing.baseImages || {}
+  }
 }
 
 async function loadDocument (url = DEFAULT_URL, options = {}) {
@@ -215,7 +259,14 @@ async function main (options = {}) {
   } = options
 
   const document = await loadDocument(url, { timeout, retries })
-  const data = parseVersions(document)
+  const discovered = parseVersions(document)
+  let existing = {}
+  try {
+    existing = JSON.parse(fs.readFileSync(outputPath, 'utf8'))
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err
+  }
+  const data = createVersionData(discovered, existing)
 
   if (validate) {
     validateVersionData(data)
@@ -236,6 +287,7 @@ module.exports = {
   logVersionInfo,
   validateVersionData,
   isValidVersion,
+  createVersionData,
   main,
   VersionFetchError,
   DEFAULT_URL,

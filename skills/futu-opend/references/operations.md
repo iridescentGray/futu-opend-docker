@@ -84,23 +84,11 @@ kubectl -n futu-opend rollout status deployment/futu-opend
 After a major version bump, FutuOpenD may invalidate the cached login —
 expect a fresh SMS prompt.
 
-## Switch base image (ubuntu ↔ centos)
+## Legacy base-image switching
 
-Only the image tag changes; the volume and credentials are reusable.
-
-```bash
-# Pull / use the centos tag instead of ubuntu (or vice versa):
-ghcr.io/manhinhang/futu-opend-docker:centos-stable
-
-# compose: change the BASE_IMG build arg and rebuild:
-docker compose build --build-arg BASE_IMG=centos
-docker compose up -d
-# (or pin --target=final-centos-target via docker build)
-
-# docker run: pull and recreate as in the bump recipe above.
-
-# k8s: edit deployment.yaml's image tag (centos-stable / centos-{ver}).
-```
+CentOS builds, `BASE_IMG`, and the `final-centos-target` were removed from this
+fork's maintained path. Do not use the old switching commands; the only current
+build target is the pinned Ubuntu-based Linux/amd64 `runtime` stage.
 
 ## Pull latest published image
 
