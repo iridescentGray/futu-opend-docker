@@ -141,3 +141,36 @@ Local-only `node:test` suite that drives a real login. CI keeps its existing exi
 - **Download**: `bash script/download_futu_opend.sh <tarball-name>` (single positional argument; the script attempts up to 3 times with a fixed 2 s delay between retries).
 - **Login session persistence**: `futu-opend-data` named volume avoids SMS re-prompt across container recreate. Wipe with `docker compose down -v`. See [README.md](README.md) "Login session persistence" for the full story.
 - **Disclaimer**: Not affiliated with Futu Securities.
+
+## FORK HARDENING
+
+This fork is maintained for long-term personal use. The primary target is a
+single Linux/amd64 FutuOpenD instance managed with Docker Compose. Follow these
+constraints for all hardening work:
+
+- Make small, reviewable changes. Reuse the existing structure and test tools,
+  and do not add runtime dependencies without a demonstrated need.
+- Preserve `LICENSE` and upstream attribution.
+- Never read or output real `.env` files, passwords, password MD5 values,
+  private keys, verification codes, or login-cache contents.
+- Do not query password managers or other external account connections for
+  credentials.
+- Do not perform a real login, unlock trading, place or cancel orders, move
+  funds, or enable paid permissions.
+- Do not erase or migrate existing production data volumes, and never run a
+  global Docker cleanup.
+- Tests must use explicitly created temporary directories, fake credentials,
+  test keys, and isolated resources.
+- Do not disable the sandbox, use privileged containers, or change host
+  firewall or Docker daemon configuration.
+- Do not automatically push commits, publish images, deploy services, or
+  change remote-repository settings.
+- Never fabricate test results. Report each check as `PASSED`, `FAILED`,
+  `SKIPPED`, or `NOT RUN`.
+- At the end of every phase, summarize changes, checks actually executed,
+  results, and remaining unverified items, and update the task checklist.
+- Advance login, security configuration, builds, and tests as separate phases;
+  do not fold unrelated refactors into them.
+
+The audit baseline, evidence, minimal change plan, acceptance criteria, and
+phase checklist live in [`docs/fork-hardening.md`](docs/fork-hardening.md).
