@@ -61,3 +61,19 @@ container_engine_os() {
     ;;
   esac
 }
+
+validate_compose_config() {
+  case "$container_engine" in
+  docker)
+    "$@" config --quiet
+    ;;
+  podman)
+    # podman-compose 1.0.x accepts config but not Docker's --quiet flag.
+    "$@" config >/dev/null
+    ;;
+  *)
+    printf '%s\n' 'ERROR: container engine has not been resolved' >&2
+    return 70
+    ;;
+  esac
+}

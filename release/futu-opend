@@ -78,6 +78,11 @@ compose() {
   "${compose_cmd[@]}" --env-file "$env_file" -f "$compose_file" "$@"
 }
 
+validate_config() {
+  validate_compose_config "${compose_cmd[@]}" --env-file "$env_file" \
+    -f "$compose_file"
+}
+
 prepare_runtime_key() {
   local key=$1
   LOCAL_RSA_FILE_PATH="$key" compose run --rm --no-deps futu-key-init
@@ -131,7 +136,7 @@ initialize() {
   command -v expect >/dev/null 2>&1 || die 'expect is required' 69
   ensure_key
   key=$(key_path)
-  LOCAL_RSA_FILE_PATH="$key" compose config --quiet
+  LOCAL_RSA_FILE_PATH="$key" validate_config
   LOCAL_RSA_FILE_PATH="$key" compose down
   prepare_runtime_key "$key"
 
@@ -176,7 +181,7 @@ start)
   require_base
   ensure_key
   selected_key=$(key_path)
-  LOCAL_RSA_FILE_PATH="$selected_key" compose config --quiet
+  LOCAL_RSA_FILE_PATH="$selected_key" validate_config
   prepare_runtime_key "$selected_key"
   LOCAL_RSA_FILE_PATH="$selected_key" compose up -d --no-deps futu-opend
   ;;

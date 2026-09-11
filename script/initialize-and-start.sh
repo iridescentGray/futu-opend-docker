@@ -86,9 +86,12 @@ bash "$root_dir/script/lock-artifact.sh" "$env_file"
 compose=("${compose_cmd[@]}" --env-file "$env_file" -f "$compose_file")
 
 # Validate interpolation before creating a key or stopping an existing service.
-env -u FUTU_OPEND_SHA256 LOCAL_RSA_FILE_PATH="$key_path" \
-  "${compose[@]}" config --quiet ||
+if ! (
+  unset FUTU_OPEND_SHA256
+  LOCAL_RSA_FILE_PATH="$key_path" validate_compose_config "${compose[@]}"
+); then
   die 'Compose configuration is invalid; no service was stopped'
+fi
 
 if [[ -e $key_path || -L $key_path ]]; then
   [[ -f $key_path && ! -L $key_path ]] ||

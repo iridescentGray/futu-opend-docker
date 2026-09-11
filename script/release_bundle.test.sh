@@ -146,6 +146,15 @@ exercise_bundle() {
     printf 'wrapper-only password name reached Docker arguments\n' >&2
     exit 1
   fi
+  if [[ $engine == podman ]]; then
+    grep -Fq ' config' "$capture"
+    if grep -Fq 'config --quiet' "$capture"; then
+      printf 'Podman release validation used unsupported config --quiet\n' >&2
+      exit 1
+    fi
+  else
+    grep -Fq 'config --quiet' "$capture"
+  fi
 }
 
 exercise_bundle "$linux_bundle" Linux x86_64 podman "$test_root/linux-podman.args"

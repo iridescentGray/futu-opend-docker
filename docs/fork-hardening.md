@@ -401,6 +401,8 @@ configuration file. This conflict is recorded rather than silently resolved.
 - [x] Phase 15 — Docker/Podman dual-runtime compatibility: centralized engine
       selection, provider-independent key ordering, rootless/SELinux handling,
       release-bundle support, simulated command coverage, and Podman CI smoke.
+- [x] Phase 16 — Podman Compose 1.0.x configuration validation compatibility,
+      discovered by the required publish smoke and covered before r4.
 
 The phases deliberately keep login, security configuration, build hardening,
 and test/CI work separate. Target-platform real login, SDK readiness, image
@@ -1037,3 +1039,25 @@ provider in Ubuntu PR CI and documents upgrading the provider if it rejects the
 preserved Docker `max-file` logging option. The local work did not claim a
 rootless or SELinux runtime pass because neither Podman nor SELinux is available
 on the audit host.
+
+## Phase 16 — Podman Compose 1.0.x configuration validation
+
+The corrected Phase 15 commit passed lint and Docker Layer 2 on the trusted
+main workflow, then the required rootless Podman smoke exposed a real provider
+difference: Ubuntu's `podman-compose 1.0.6` rejects Docker's `config --quiet`
+option. Registry authentication, image push, and release tagging remained
+blocked.
+
+Configuration validation is now engine-specific in the shared helper. Docker
+retains `config --quiet`; Podman runs supported `config` while discarding only
+normal stdout so errors remain visible. Source initialization, release `init`,
+`reauth`, and `start`, and the Podman smoke all use this shared contract.
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| First corrected main Publish attempt | FAILED | Docker Layer 2 reached its explicit 20-minute timeout; Podman and publication steps did not run. |
+| Second corrected main Publish attempt | FAILED | Docker Layer 2 passed; rootless Podman built the image, then `podman-compose 1.0.6` rejected `config --quiet`. Publication steps did not run. |
+| Engine validation unit tests | PASSED | Docker retains `config --quiet`; Podman omits the unsupported flag without fallback. |
+| Source and release simulated workflows | PASSED | Initialization and all release operations use the shared engine-specific validation path. |
+| Local rootless Podman smoke | SKIPPED | Podman is unavailable on the macOS host; the required Ubuntu workflow remains the runtime gate. |
+| Tagged `v10.10.7008-r4` GitHub Release | NOT RUN | Must wait for the new main workflow's Docker and rootless Podman gates. |

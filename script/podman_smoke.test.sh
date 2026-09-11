@@ -5,6 +5,10 @@ set -Eeuo pipefail
 root_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 readonly root_dir
 
+# shellcheck source=script/container-engine.sh
+source "$root_dir/script/container-engine.sh"
+container_engine=podman
+
 skip_or_fail() {
   if [[ ${PODMAN_SMOKE_REQUIRED:-0} == 1 ]]; then
     printf 'FAILED: %s\n' "$1" >&2
@@ -58,14 +62,14 @@ podman build --platform linux/amd64 --target runtime \
   --tag "$image_name" "$root_dir"
 printf 'PASSED: podman build produced the locked Linux/amd64 runtime image\n'
 
-LOCAL_RSA_FILE_PATH="$key_file" podman compose \
+LOCAL_RSA_FILE_PATH="$key_file" validate_compose_config podman compose \
   --project-name "$project_name-source" --env-file "$env_file" \
-  -f "$root_dir/docker-compose.yaml" config --quiet
+  -f "$root_dir/docker-compose.yaml"
 printf 'PASSED: podman compose accepted the source deployment model\n'
 
-LOCAL_RSA_FILE_PATH="$key_file" podman compose \
+LOCAL_RSA_FILE_PATH="$key_file" validate_compose_config podman compose \
   --project-name "$project_name" --env-file "$env_file" \
-  -f "$root_dir/release/compose.yaml" config --quiet
+  -f "$root_dir/release/compose.yaml"
 printf 'PASSED: podman compose accepted the release model\n'
 
 LOCAL_RSA_FILE_PATH="$key_file" podman compose \

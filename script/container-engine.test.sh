@@ -11,6 +11,7 @@ make_engine() {
   mkdir -p "$directory"
   printf '%s\n' \
     '#!/bin/bash' \
+    '[[ -z ${ENGINE_CAPTURE:-} ]] || printf "%s\n" "$*" >>"$ENGINE_CAPTURE"' \
     "if [[ \${1:-} == compose && \${2:-} == version ]]; then exit $compose_status; fi" \
     'exit 0' >"$directory/$name"
   chmod 0755 "$directory/$name"
@@ -87,4 +88,30 @@ fi
 grep -Fq 'requires podman compose' "$case_dir.out"
 printf 'ok 8 - explicit mode reports a missing Compose command\n'
 
-printf '1..8\n'
+case_dir=$test_root/config-validation
+make_engine "$case_dir" docker 0
+ENGINE_CAPTURE="$case_dir-docker.args" PATH="$case_dir" /bin/bash -c '
+  source "$1"
+  resolve_container_engine
+  validate_compose_config "${compose_cmd[@]}" --env-file fake.env -f compose.yaml
+' _ "$root_dir/script/container-engine.sh"
+grep -Fxq 'compose --env-file fake.env -f compose.yaml config --quiet' \
+  "$case_dir-docker.args"
+printf 'ok 9 - Docker configuration validation uses config --quiet\n'
+
+case_dir=$test_root/config-validation-podman
+make_engine "$case_dir" podman 0
+ENGINE_CAPTURE="$case_dir-podman.args" PATH="$case_dir" /bin/bash -c '
+  source "$1"
+  resolve_container_engine
+  validate_compose_config "${compose_cmd[@]}" --env-file fake.env -f compose.yaml
+' _ "$root_dir/script/container-engine.sh"
+grep -Fxq 'compose --env-file fake.env -f compose.yaml config' \
+  "$case_dir-podman.args"
+if grep -Fq 'config --quiet' "$case_dir-podman.args"; then
+  printf 'Podman configuration validation used unsupported --quiet\n' >&2
+  exit 1
+fi
+printf 'ok 10 - Podman configuration validation avoids unsupported --quiet\n'
+
+printf '1..10\n'
