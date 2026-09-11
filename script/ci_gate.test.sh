@@ -10,9 +10,11 @@ expect_pass() {
   local name=$1 layer1=$2 layer2=$3 required=$4
   if LAYER1_RESULT=$layer1 LAYER2_RESULT=$layer2 BUILD_REQUIRED=$required \
     bash "$gate" >/dev/null 2>&1; then
-    passes=$((passes + 1)); printf 'ok %d - %s\n' "$passes" "$name"
+    passes=$((passes + 1))
+    printf 'ok %d - %s\n' "$passes" "$name"
   else
-    printf 'not ok - %s\n' "$name" >&2; exit 1
+    printf 'not ok - %s\n' "$name" >&2
+    exit 1
   fi
 }
 
@@ -20,9 +22,11 @@ expect_fail() {
   local name=$1 layer1=$2 layer2=$3 required=$4
   if LAYER1_RESULT=$layer1 LAYER2_RESULT=$layer2 BUILD_REQUIRED=$required \
     bash "$gate" >/dev/null 2>&1; then
-    printf 'not ok - %s\n' "$name" >&2; exit 1
+    printf 'not ok - %s\n' "$name" >&2
+    exit 1
   else
-    passes=$((passes + 1)); printf 'ok %d - %s\n' "$passes" "$name"
+    passes=$((passes + 1))
+    printf 'ok %d - %s\n' "$passes" "$name"
   fi
 }
 

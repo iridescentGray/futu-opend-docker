@@ -12,24 +12,24 @@ if [[ $layer1_result != success ]]; then
 fi
 
 case "$build_required" in
-  true)
-    if [[ $layer2_result != success ]]; then
-      printf 'CI gate failed: Layer 2 was required and must succeed; got %s\n' \
-        "${layer2_result:-missing}" >&2
-      exit 1
-    fi
-    ;;
-  false)
-    if [[ $layer2_result != skipped ]]; then
-      printf 'CI gate failed: docs-only Layer 2 must be the classified skip; got %s\n' \
-        "${layer2_result:-missing}" >&2
-      exit 1
-    fi
-    ;;
-  *)
-    printf 'CI gate failed: Layer 2 classification is missing or invalid\n' >&2
+true)
+  if [[ $layer2_result != success ]]; then
+    printf 'CI gate failed: Layer 2 was required and must succeed; got %s\n' \
+      "${layer2_result:-missing}" >&2
     exit 1
-    ;;
+  fi
+  ;;
+false)
+  if [[ $layer2_result != skipped ]]; then
+    printf 'CI gate failed: docs-only Layer 2 must be the classified skip; got %s\n' \
+      "${layer2_result:-missing}" >&2
+    exit 1
+  fi
+  ;;
+*)
+  printf 'CI gate failed: Layer 2 classification is missing or invalid\n' >&2
+  exit 1
+  ;;
 esac
 
 printf 'PASSED: Layer 1 and required Layer 2 gates\n'

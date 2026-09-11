@@ -3,7 +3,8 @@
 set -Eeuo pipefail
 umask 077
 
-readonly root_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+root_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+readonly root_dir
 readonly version=${1:-}
 readonly image_ref=${2:-}
 readonly output_dir=${3:-$root_dir/dist}

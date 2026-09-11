@@ -3,7 +3,8 @@
 set -Eeuo pipefail
 umask 077
 
-readonly root_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+root_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+readonly root_dir
 readonly env_file=${1:-$root_dir/.env}
 readonly version=10.10.7008
 readonly archive_name="Futu_OpenD_${version}_Ubuntu18.04.tar.gz"
@@ -13,7 +14,7 @@ die() {
   exit "${2:-1}"
 }
 
-[[ -f "$env_file" && ! -L "$env_file" ]] ||
+[[ -f $env_file && ! -L $env_file ]] ||
   die 'the environment file must be a regular file, not a symlink' 66
 
 current_sha=$(awk -F= '
@@ -33,7 +34,7 @@ tofu_output=$(bash "$root_dir/script/download_futu_opend.sh" \
   --report-tofu "$version" "$archive_name")
 download_status=$?
 set -e
-(( download_status == 0 )) ||
+((download_status == 0)) ||
   die "official HTTPS artifact inspection failed with status $download_status"
 
 printf '%s\n' "$tofu_output"

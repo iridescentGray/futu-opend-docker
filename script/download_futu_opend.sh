@@ -21,7 +21,7 @@ usage() {
   exit 64
 }
 
-(( $# == 3 )) || usage
+(($# == 3)) || usage
 
 report_tofu=false
 if [[ $1 == --report-tofu ]]; then
@@ -35,16 +35,16 @@ else
   expected_sha256=$(printf '%s' "$3" | tr '[:upper:]' '[:lower:]')
 fi
 
-[[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || \
+[[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
   die 'VERSION must use the numeric X.Y.Z form' 64
 
 expected_archive="Futu_OpenD_${version}_Ubuntu18.04.tar.gz"
-[[ $archive_name == "$expected_archive" ]] || \
+[[ $archive_name == "$expected_archive" ]] ||
   die "ARCHIVE_NAME must be exactly ${expected_archive}" 64
-[[ $archive_name != */* && $archive_name != *'..'* ]] || \
+[[ $archive_name != */* && $archive_name != *'..'* ]] ||
   die 'ARCHIVE_NAME must not contain a path or traversal component' 64
 if [[ $report_tofu == false ]]; then
-  [[ $expected_sha256 =~ ^[0-9a-f]{64}$ ]] || \
+  [[ $expected_sha256 =~ ^[0-9a-f]{64}$ ]] ||
     die 'EXPECTED_SHA256 must be a pre-recorded 64-character hexadecimal digest' 64
 fi
 
@@ -91,18 +91,18 @@ curl \
 curl_status=$?
 set -e
 
-(( curl_status == 0 )) || \
+((curl_status == 0)) ||
   die "HTTPS download failed after at most $((RETRY_COUNT + 1)) attempts (curl exit ${curl_status})"
 [[ -s $temp_archive ]] || die 'download completed without a non-empty artifact'
 
 actual_sha256=$(sha256_file "$temp_archive")
 if [[ $report_tofu == false ]]; then
-  [[ $actual_sha256 == "$expected_sha256" ]] || \
+  [[ $actual_sha256 == "$expected_sha256" ]] ||
     die 'downloaded artifact does not match the pre-recorded SHA-256 digest'
 fi
 
 temp_listing=$(mktemp "./.${archive_name}.listing.XXXXXX")
-tar -tzf "$temp_archive" >"$temp_listing" || \
+tar -tzf "$temp_archive" >"$temp_listing" ||
   die 'downloaded artifact is not a readable gzip tar archive'
 [[ -s $temp_listing ]] || die 'downloaded archive is empty'
 
@@ -111,12 +111,12 @@ while IFS= read -r entry; do
   entry=${entry#./}
   [[ -n $entry ]] || die 'archive contains an empty path'
   [[ $entry != /* ]] || die 'archive contains an absolute path'
-  [[ $entry == "$expected_root"* ]] || \
+  [[ $entry == "$expected_root"* ]] ||
     die "archive entry is outside the expected ${expected_root} directory"
 
   IFS='/' read -r -a components <<<"$entry"
   for component in "${components[@]}"; do
-    [[ $component != '..' ]] || \
+    [[ $component != '..' ]] ||
       die 'archive contains a parent-directory traversal component'
   done
 done <"$temp_listing"

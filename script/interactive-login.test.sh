@@ -195,7 +195,7 @@ rejected_status=$?
 set -e
 [[ $rejected_status == 77 ]]
 grep -Fq 'automatic retry is disabled' "$test_root/rejected.err"
-if grep -Fq "$automatic_password_canary" "$test_root/rejected.out" || \
+if grep -Fq "$automatic_password_canary" "$test_root/rejected.out" ||
   grep -Fq "$automatic_password_canary" "$test_root/rejected.err"; then
   printf 'not ok 4 - rejected password appeared in proxy output\n' >&2
   exit 1

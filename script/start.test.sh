@@ -358,10 +358,10 @@ new_case signal
   FAKE_WAIT=1) >"$CASE_DIR/out" 2>"$CASE_DIR/err" &
 wrapper_pid=$!
 for _ in {1..250}; do
-  [[ -f "$READY_FILE" ]] && break
+  [[ -f $READY_FILE ]] && break
   sleep 0.02
 done
-[[ -f "$READY_FILE" ]] || fail 'fake OpenD did not become signal-ready'
+[[ -f $READY_FILE ]] || fail 'fake OpenD did not become signal-ready'
 kill -TERM "$wrapper_pid"
 set +e
 wait "$wrapper_pid"

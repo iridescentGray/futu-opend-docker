@@ -48,7 +48,7 @@ fi
 if grep -Fq 'fake test payload, not an RSA credential' "$TEST_ROOT/out" "$TEST_ROOT/err"; then
   fail 'key initializer leaked fake private-key content to output'
 fi
-[[ -f "$TARGET_FILE" ]] || fail 'prepared key was not created'
+[[ -f $TARGET_FILE ]] || fail 'prepared key was not created'
 [[ $(<"$TARGET_FILE") == $'-----BEGIN RSA PRIVATE KEY-----\nfake test payload, not an RSA credential\n-----END RSA PRIVATE KEY-----' ]] ||
   fail 'prepared key content does not match fake source'
 if stat -c '%a' "$TARGET_FILE" >/dev/null 2>&1; then
@@ -58,8 +58,8 @@ else
   mode=$(stat -f '%Lp' "$TARGET_FILE")
   owner=$(stat -f '%u:%g' "$TARGET_FILE")
 fi
-[[ "$mode" == 400 ]] || fail "expected target mode 400, got $mode"
-[[ "$owner" == "$(id -u):$(id -g)" ]] || fail 'target UID/GID mismatch'
+[[ $mode == 400 ]] || fail "expected target mode 400, got $mode"
+[[ $owner == "$(id -u):$(id -g)" ]] || fail 'target UID/GID mismatch'
 pass 'key is copied with requested UID/GID and mode 0400 without logging its content'
 
 SOURCE_FILE=$TEST_ROOT/missing.pem

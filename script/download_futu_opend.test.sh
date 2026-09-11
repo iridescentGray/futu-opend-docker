@@ -9,8 +9,14 @@ trap 'rm -rf -- "$temp_root"' EXIT
 
 passes=0
 failures=0
-pass() { printf 'PASSED: %s\n' "$1"; passes=$((passes + 1)); }
-fail() { printf 'FAILED: %s\n' "$1" >&2; failures=$((failures + 1)); }
+pass() {
+  printf 'PASSED: %s\n' "$1"
+  passes=$((passes + 1))
+}
+fail() {
+  printf 'FAILED: %s\n' "$1" >&2
+  failures=$((failures + 1))
+}
 
 sha256_file() {
   if command -v sha256sum >/dev/null 2>&1; then
@@ -153,4 +159,4 @@ else
 fi
 
 printf '\nDownload wrapper: %d passed, %d failed\n' "$passes" "$failures"
-(( failures == 0 ))
+((failures == 0))

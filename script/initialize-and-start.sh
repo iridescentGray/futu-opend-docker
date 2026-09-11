@@ -4,7 +4,8 @@ set -Eeuo pipefail
 set +x
 umask 077
 
-readonly root_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+root_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+readonly root_dir
 readonly env_file=${FUTU_ENV_FILE:-$root_dir/.env}
 readonly compose_file=${FUTU_COMPOSE_FILE:-$root_dir/docker-compose.yaml}
 key_path=${LOCAL_RSA_FILE_PATH:-$root_dir/futu.pem}
@@ -33,16 +34,16 @@ read_env_value() {
 
 [[ -t 0 && -t 1 ]] ||
   die 'initialization requires a private stdin/stdout TTY' 64
-[[ -f "$env_file" && ! -L "$env_file" ]] ||
+[[ -f $env_file && ! -L $env_file ]] ||
   die "environment file must be a regular file, not a symlink: $env_file" 66
-[[ -f "$compose_file" ]] || die "Compose file not found: $compose_file" 66
+[[ -f $compose_file ]] || die "Compose file not found: $compose_file" 66
 if [[ $(file_mode "$env_file") != 600 ]]; then
   chmod 0600 "$env_file" ||
     die 'unable to restrict the environment file to mode 0600' 77
 fi
-[[ "$key_path" != *$'\n'* && "$key_path" != *$'\r'* ]] ||
+[[ $key_path != *$'\n'* && $key_path != *$'\r'* ]] ||
   die 'LOCAL_RSA_FILE_PATH must not contain line breaks' 64
-if [[ "$key_path" != /* ]]; then
+if [[ $key_path != /* ]]; then
   key_path=$root_dir/${key_path#./}
 fi
 
@@ -86,14 +87,14 @@ env -u FUTU_OPEND_SHA256 LOCAL_RSA_FILE_PATH="$key_path" \
   "${compose[@]}" config --quiet ||
   die 'Compose configuration is invalid; no service was stopped'
 
-if [[ -e "$key_path" || -L "$key_path" ]]; then
-  [[ -f "$key_path" && ! -L "$key_path" ]] ||
+if [[ -e $key_path || -L $key_path ]]; then
+  [[ -f $key_path && ! -L $key_path ]] ||
     die 'the existing RSA key path must be a regular file, not a symlink'
   [[ $(file_mode "$key_path") == 600 ]] ||
     die 'the existing RSA key must use mode 0600; it was not modified'
 else
   key_parent=${key_path%/*}
-  [[ -d "$key_parent" && -w "$key_parent" ]] ||
+  [[ -d $key_parent && -w $key_parent ]] ||
     die 'the RSA key parent directory must already exist and be writable'
   temporary_key=$(mktemp "$key_parent/.futu-key.XXXXXX")
   cleanup_key() {
@@ -103,7 +104,7 @@ else
   openssl genrsa -traditional -out "$temporary_key" 1024 >/dev/null 2>&1 ||
     die 'OpenSSL could not generate the RSA key'
   chmod 0600 "$temporary_key"
-  [[ ! -e "$key_path" && ! -L "$key_path" ]] ||
+  [[ ! -e $key_path && ! -L $key_path ]] ||
     die 'the RSA key appeared during generation; refusing to overwrite it'
   mv -- "$temporary_key" "$key_path"
   trap - EXIT HUP INT TERM
@@ -148,7 +149,7 @@ unset login_password
 restore_tty
 trap - EXIT HUP INT TERM
 
-if (( interactive_status != 0 )); then
+if ((interactive_status != 0)); then
   die "interactive OpenD exited with status $interactive_status" "$interactive_status"
 fi
 

@@ -68,33 +68,33 @@ Docker containerization for Futu OpenD — a trading API gateway for Futu Securi
 
 ## WHERE TO LOOK
 
-| Task                                   | Location                                                          | Notes                                                                                                      |
-| -------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Add build arg                          | `Dockerfile` (FUTU_OPEND_VER ARG sites)                           | Default matches supported `10.10.7008`; CI passes an explicit value                                        |
-| Modify startup                         | `script/start.sh`                                                 | Login validation, safe XML rendering, state lock, and `exec` happen here                                   |
-| Change CI triggers                     | `.github/workflows/publish.yml`                                   | Locked stable Ubuntu/amd64 image → GHCR                                                                    |
-| Update config template                 | `FutuOpenD.xml`                                                   | Login-free template with explicit `###FUTU_OPEND_*###` placeholders                                       |
-| Test startup wrapper                   | `script/start.test.sh`                                            | Offline fake OpenD; never proves real login                                                                |
-| Initialize or reauthenticate           | `script/initialize-and-start.sh`                                  | User-only private TTY; current process serves API immediately after official login                        |
-| Build consumer release bundle          | `script/build-release-bundle.sh`, `release/`                       | Produces source-free archive using a registry-digest-pinned GHCR image                                    |
-| Operate from release bundle            | `release/futu-opend`, `release/compose.yaml`                       | `init` for first login; `start` for remembered background startup; no local image build                    |
-| Modify interactive conveniences        | `script/interactive-login.exp`                                    | Wrapper-only env password is single-use; fake OpenD tests required; no Telnet                              |
-| Lock local first-trust artifact        | `script/lock-artifact.sh`                                         | Fixed official HTTPS temp download and atomic `.env` update; TOFU, not publisher authentication          |
-| Test Compose and key preparation       | `script/compose.test.sh`, `script/init-key.test.sh`                | Offline/fake inputs; Compose config only, no daemon                                                        |
-| Version detection                      | `script/check_version.js`                                         | Scraper with retry, timeout, validation                                                                    |
-| Run unit tests                         | `script/check_version.test.js`                                    | `npm run test:unit`                                                                                        |
-| Run layered verification               | `package.json`, `docs/E2E.md`                                     | Layer 1 offline; Layer 2 no-credential container; Layer 3 user-only live                                  |
-| Review detailed deployment behavior    | `docs/deployment.md`                                              | Build lock, key handling, login lifecycle, networks, health and state volumes                              |
-| Run k8s e2e                            | `script/e2e.k8s.test.mjs`                                         | `npm run test:k8s` (kind = manifest-only) or `K8S_E2E_BACKEND=existing npm run test:k8s`                   |
-| Deploy on k8s                          | `k8s/`                                                            | `kubectl apply -k k8s/`; SMS/CAPTCHA flow at [k8s/README.md](k8s/README.md)                                |
-| Compose helpers (Node)                 | `script/lib/docker.mjs`                                           | `composeUp`, `sendTelnetCommand`, `tailLogs`, `inspectHealth`                                              |
-| K8s helpers (Node)                     | `script/lib/k8s.mjs`                                              | `createKindCluster`, `kindLoadImage`, `tailKubectlLogs`, `startPortForward`                                |
-| Enable WebSocket                       | `script/start.sh` (websocket section)                             | Set `FUTU_OPEND_WEBSOCKET_PORT` (default disabled)                                                         |
-| Persist login session                  | `docker-compose.yaml` `futu-opend-data`                           | Mounted at `/home/futu/.com.futunn.FutuOpenD`                                                              |
-| Tweak compose env                      | ignored `.env` copied from `.env.example`                         | Always pass `--env-file .env`; offline tests create explicit fake env files                               |
-| Add npm script                         | `package.json`                                                    | Preserve `test:layer1`, `test:smoke`, `test:live`, and explicit legacy skip                                |
-| Propose first-trust artifact hash      | `bash script/download_futu_opend.sh --report-tofu <version> <tarball>` | Temporary official-HTTPS download; not publisher authenticity proof                                    |
-| Drive install / day-2 ops via an agent | `skills/futu-opend/SKILL.md`                                      | Fork-safe Compose runbook; real login and verification remain user-only                                   |
+| Task                                   | Location                                                               | Notes                                                                                           |
+| -------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Add build arg                          | `Dockerfile` (FUTU_OPEND_VER ARG sites)                                | Default matches supported `10.10.7008`; CI passes an explicit value                             |
+| Modify startup                         | `script/start.sh`                                                      | Login validation, safe XML rendering, state lock, and `exec` happen here                        |
+| Change CI triggers                     | `.github/workflows/publish.yml`                                        | Locked stable Ubuntu/amd64 image → GHCR                                                         |
+| Update config template                 | `FutuOpenD.xml`                                                        | Login-free template with explicit `###FUTU_OPEND_*###` placeholders                             |
+| Test startup wrapper                   | `script/start.test.sh`                                                 | Offline fake OpenD; never proves real login                                                     |
+| Initialize or reauthenticate           | `script/initialize-and-start.sh`                                       | User-only private TTY; current process serves API immediately after official login              |
+| Build consumer release bundle          | `script/build-release-bundle.sh`, `release/`                           | Produces source-free archive using a registry-digest-pinned GHCR image                          |
+| Operate from release bundle            | `release/futu-opend`, `release/compose.yaml`                           | `init` for first login; `start` for remembered background startup; no local image build         |
+| Modify interactive conveniences        | `script/interactive-login.exp`                                         | Wrapper-only env password is single-use; fake OpenD tests required; no Telnet                   |
+| Lock local first-trust artifact        | `script/lock-artifact.sh`                                              | Fixed official HTTPS temp download and atomic `.env` update; TOFU, not publisher authentication |
+| Test Compose and key preparation       | `script/compose.test.sh`, `script/init-key.test.sh`                    | Offline/fake inputs; Compose config only, no daemon                                             |
+| Version detection                      | `script/check_version.js`                                              | Scraper with retry, timeout, validation                                                         |
+| Run unit tests                         | `script/check_version.test.js`                                         | `npm run test:unit`                                                                             |
+| Run layered verification               | `package.json`, `docs/E2E.md`                                          | Layer 1 offline; Layer 2 no-credential container; Layer 3 user-only live                        |
+| Review detailed deployment behavior    | `docs/deployment.md`                                                   | Build lock, key handling, login lifecycle, networks, health and state volumes                   |
+| Run k8s e2e                            | `script/e2e.k8s.test.mjs`                                              | `npm run test:k8s` (kind = manifest-only) or `K8S_E2E_BACKEND=existing npm run test:k8s`        |
+| Deploy on k8s                          | `k8s/`                                                                 | `kubectl apply -k k8s/`; SMS/CAPTCHA flow at [k8s/README.md](k8s/README.md)                     |
+| Compose helpers (Node)                 | `script/lib/docker.mjs`                                                | `composeUp`, `sendTelnetCommand`, `tailLogs`, `inspectHealth`                                   |
+| K8s helpers (Node)                     | `script/lib/k8s.mjs`                                                   | `createKindCluster`, `kindLoadImage`, `tailKubectlLogs`, `startPortForward`                     |
+| Enable WebSocket                       | `script/start.sh` (websocket section)                                  | Set `FUTU_OPEND_WEBSOCKET_PORT` (default disabled)                                              |
+| Persist login session                  | `docker-compose.yaml` `futu-opend-data`                                | Mounted at `/home/futu/.com.futunn.FutuOpenD`                                                   |
+| Tweak compose env                      | ignored `.env` copied from `.env.example`                              | Always pass `--env-file .env`; offline tests create explicit fake env files                     |
+| Add npm script                         | `package.json`                                                         | Preserve `test:layer1`, `test:smoke`, `test:live`, and explicit legacy skip                     |
+| Propose first-trust artifact hash      | `bash script/download_futu_opend.sh --report-tofu <version> <tarball>` | Temporary official-HTTPS download; not publisher authenticity proof                             |
+| Drive install / day-2 ops via an agent | `skills/futu-opend/SKILL.md`                                           | Fork-safe Compose runbook; real login and verification remain user-only                         |
 
 ## CONVENTIONS
 
@@ -136,18 +136,18 @@ Docker containerization for Futu OpenD — a trading API gateway for Futu Securi
 
 ## VERSIONS & PORTS
 
-| Fact                        | Value                                  | Source of truth                                                      |
-| --------------------------- | -------------------------------------- | -------------------------------------------------------------------- |
-| Stable OpenD                | 10.10.7008                             | `opend_version.json` <!-- futu-opend-version -->                     |
-| Beta OpenD                  | null                                   | `opend_version.json`                                                 |
-| Build version input         | required `FUTU_OPEND_VER`             | Compose/CI reads `opend_version.json`; Dockerfile has no fallback    |
-| `.env.example` default      | 10.10.7008                             | `.env.example` (mirrors stable on bumps) <!-- futu-opend-version --> |
-| Runtime base                | pinned `ubuntu:18.04` amd64            | `opend_version.json` + `Dockerfile`; compatibility baseline, EOL     |
-| Build base                  | pinned `ubuntu:22.04` amd64            | `opend_version.json` + `Dockerfile`                                  |
-| Artifact integrity          | TOFU-reviewed SHA-256                  | Fixed official-HTTPS archive; not publisher signature authentication |
-| API port                    | 11111                                  | env `FUTU_OPEND_PORT`                                                |
-| Telnet port (optional)      | disabled                               | set both Telnet IP and port explicitly to opt in                      |
-| WebSocket port (optional)   | disabled                               | env `FUTU_OPEND_WEBSOCKET_PORT`; not host-published by default        |
+| Fact                      | Value                       | Source of truth                                                      |
+| ------------------------- | --------------------------- | -------------------------------------------------------------------- |
+| Stable OpenD              | 10.10.7008                  | `opend_version.json` <!-- futu-opend-version -->                     |
+| Beta OpenD                | null                        | `opend_version.json`                                                 |
+| Build version input       | required `FUTU_OPEND_VER`   | Compose/CI reads `opend_version.json`; Dockerfile has no fallback    |
+| `.env.example` default    | 10.10.7008                  | `.env.example` (mirrors stable on bumps) <!-- futu-opend-version --> |
+| Runtime base              | pinned `ubuntu:18.04` amd64 | `opend_version.json` + `Dockerfile`; compatibility baseline, EOL     |
+| Build base                | pinned `ubuntu:22.04` amd64 | `opend_version.json` + `Dockerfile`                                  |
+| Artifact integrity        | TOFU-reviewed SHA-256       | Fixed official-HTTPS archive; not publisher signature authentication |
+| API port                  | 11111                       | env `FUTU_OPEND_PORT`                                                |
+| Telnet port (optional)    | disabled                    | set both Telnet IP and port explicitly to opt in                     |
+| WebSocket port (optional) | disabled                    | env `FUTU_OPEND_WEBSOCKET_PORT`; not host-published by default       |
 
 ## TEST LAYERS
 

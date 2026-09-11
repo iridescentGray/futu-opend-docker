@@ -56,7 +56,8 @@ version=''
 sha256=''
 while IFS= read -r field; do
   if [[ -z $version ]]; then version=$field; else sha256=$field; fi
-done < <(python3 - "$root_dir/opend_version.json" <<'PY'
+done < <(
+  python3 - "$root_dir/opend_version.json" <<'PY'
 import json
 import re
 import sys
@@ -97,6 +98,8 @@ fi
 [[ $(run_timeout 10 docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.version"}}' "$image_name") == "$version" ]] ||
   fail 'image version label does not match the locked OpenD version'
 
+# This script is intentionally evaluated in the container.
+# shellcheck disable=SC2016
 run_timeout 30 docker run --rm --network none --entrypoint /bin/sh "$image_name" -eu -c '
   test "$(id -u):$(id -g)" = 10001:10001
   test -x /opt/futu-opend/FutuOpenD

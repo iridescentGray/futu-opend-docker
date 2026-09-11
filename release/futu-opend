@@ -4,7 +4,8 @@ set -Eeuo pipefail
 set +x
 umask 077
 
-readonly bundle_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+bundle_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+readonly bundle_dir
 readonly env_file=${FUTU_ENV_FILE:-$bundle_dir/.env}
 readonly compose_file=$bundle_dir/compose.yaml
 
@@ -40,7 +41,7 @@ unquote_env_value() {
 
 require_base() {
   command -v docker >/dev/null 2>&1 || die 'docker is required' 69
-  [[ -f "$env_file" && ! -L "$env_file" ]] ||
+  [[ -f $env_file && ! -L $env_file ]] ||
     die "environment file must be a regular file: $env_file" 66
   [[ $(file_mode "$env_file") == 600 ]] || chmod 0600 "$env_file" ||
     die 'unable to restrict the environment file to mode 0600' 77
@@ -123,34 +124,34 @@ initialize() {
   unset password
   restore_tty
   trap - EXIT HUP INT TERM
-  (( status == 0 )) || die "interactive OpenD exited with status $status" "$status"
+  ((status == 0)) || die "interactive OpenD exited with status $status" "$status"
 }
 
 command_name=${1:-}
 case "$command_name" in
-  init|reauth)
-    require_base
-    initialize
-    ;;
-  start)
-    require_base
-    ensure_key
-    LOCAL_RSA_FILE_PATH="$(key_path)" compose up -d
-    ;;
-  stop)
-    require_base
-    LOCAL_RSA_FILE_PATH="$(key_path)" compose down
-    ;;
-  status)
-    require_base
-    LOCAL_RSA_FILE_PATH="$(key_path)" compose ps
-    ;;
-  logs)
-    require_base
-    LOCAL_RSA_FILE_PATH="$(key_path)" compose logs -f futu-opend
-    ;;
-  *)
-    printf 'Usage: %s {init|start|stop|status|logs|reauth}\n' "$0" >&2
-    exit 64
-    ;;
+init | reauth)
+  require_base
+  initialize
+  ;;
+start)
+  require_base
+  ensure_key
+  LOCAL_RSA_FILE_PATH="$(key_path)" compose up -d
+  ;;
+stop)
+  require_base
+  LOCAL_RSA_FILE_PATH="$(key_path)" compose down
+  ;;
+status)
+  require_base
+  LOCAL_RSA_FILE_PATH="$(key_path)" compose ps
+  ;;
+logs)
+  require_base
+  LOCAL_RSA_FILE_PATH="$(key_path)" compose logs -f futu-opend
+  ;;
+*)
+  printf 'Usage: %s {init|start|stop|status|logs|reauth}\n' "$0" >&2
+  exit 64
+  ;;
 esac

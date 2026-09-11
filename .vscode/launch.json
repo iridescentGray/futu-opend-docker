@@ -42,12 +42,7 @@
       "id": "futuNewsType",
       "type": "pickString",
       "description": "资讯类型",
-      "options": [
-        "news",
-        "all",
-        "notice",
-        "rating"
-      ],
+      "options": ["news", "all", "notice", "rating"],
       "default": "news"
     }
   ]

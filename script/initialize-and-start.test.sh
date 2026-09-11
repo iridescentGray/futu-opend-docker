@@ -127,7 +127,7 @@ assert 'FUTU_LOGIN_MODE=interactive' in calls[2], calls[2]
 PY
 grep -Fq 'foreground OpenD process is the active API service' "$success_dir/output"
 [[ $(<"$success_dir/received-password") == "$password_canary" ]]
-if grep -Fq "$password_canary" "$success_dir/output" || \
+if grep -Fq "$password_canary" "$success_dir/output" ||
   grep -Fq "$password_canary" "$success_log"; then
   printf 'not ok 1 - unified initialization output contains the fake password\n' >&2
   exit 1
@@ -159,7 +159,7 @@ set -e
 [[ $(<"$failure_dir/received-password") == "$override_password_canary" ]]
 [[ $(grep -c '^CALL$' "$failure_dir/docker.log") == 3 ]]
 grep -Fq 'interactive OpenD exited with status 23' "$failure_dir/output"
-if grep -Fq "$override_password_canary" "$failure_dir/output" || \
+if grep -Fq "$override_password_canary" "$failure_dir/output" ||
   grep -Fq "$override_password_canary" "$failure_dir/docker.log"; then
   printf 'not ok 3 - shell environment password leaked to output or Docker argv\n' >&2
   exit 1

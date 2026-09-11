@@ -346,52 +346,52 @@ configuration file. This conflict is recorded rather than silently resolved.
 
 ## Audit-phase checks
 
-| Check | Result | Notes |
-| --- | --- | --- |
-| Git status and baseline commit | PASSED | Worktree was clean at audit start; commit recorded above. |
-| Required source/workflow/test/document review | PASSED | Files listed under Evidence reviewed were inspected without reading secret files. |
-| Official v10.10 login/changelog review | PASSED | Documentation mismatch and internal documentation conflict recorded in FH-01. |
-| `bash -n script/start.sh script/download_futu_opend.sh` | PASSED | Exit status 0. |
-| Unit tests (`npm run test:unit`) | NOT RUN | `npm` is not installed/on `PATH` in this environment. |
-| Node syntax checks | NOT RUN | `node` is not installed/on `PATH` in this environment. |
-| OpenD binary `-help` on Linux/amd64 | NOT RUN | Audit host is Darwin/arm64 and Docker daemon access was unavailable; no target-runtime claim made. |
-| Docker build / image inspection | NOT RUN | No accessible isolated Linux/amd64 Docker environment. |
-| Compose E2E / real login / 2FA | NOT RUN | Prohibited by the hardening constraints; existing harness is destructive to its project volume. |
-| Kubernetes tests | NOT RUN | Kubernetes is a non-target for this pass. |
+| Check                                                   | Result  | Notes                                                                                              |
+| ------------------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------- |
+| Git status and baseline commit                          | PASSED  | Worktree was clean at audit start; commit recorded above.                                          |
+| Required source/workflow/test/document review           | PASSED  | Files listed under Evidence reviewed were inspected without reading secret files.                  |
+| Official v10.10 login/changelog review                  | PASSED  | Documentation mismatch and internal documentation conflict recorded in FH-01.                      |
+| `bash -n script/start.sh script/download_futu_opend.sh` | PASSED  | Exit status 0.                                                                                     |
+| Unit tests (`npm run test:unit`)                        | NOT RUN | `npm` is not installed/on `PATH` in this environment.                                              |
+| Node syntax checks                                      | NOT RUN | `node` is not installed/on `PATH` in this environment.                                             |
+| OpenD binary `-help` on Linux/amd64                     | NOT RUN | Audit host is Darwin/arm64 and Docker daemon access was unavailable; no target-runtime claim made. |
+| Docker build / image inspection                         | NOT RUN | No accessible isolated Linux/amd64 Docker environment.                                             |
+| Compose E2E / real login / 2FA                          | NOT RUN | Prohibited by the hardening constraints; existing harness is destructive to its project volume.    |
+| Kubernetes tests                                        | NOT RUN | Kubernetes is a non-target for this pass.                                                          |
 
 ## Phase checklist and progress
 
 - [x] Phase 0 — baseline and evidence audit: document findings, constraints,
-  minimal changes, and acceptance methods.
+      minimal changes, and acceptance methods.
 - [x] Phase 1 — login mechanism implementation: separate first-run interactive
-  and remembered-state startup, remove XML credentials, harden the wrapper, and
-  add fake-OpenD tests. Linux/amd64 binary and real-login acceptance remain
-  explicitly unverified below.
+      and remembered-state startup, remove XML credentials, harden the wrapper, and
+      add fake-OpenD tests. Linux/amd64 binary and real-login acceptance remain
+      explicitly unverified below.
 - [x] Phase 2 — Compose/runtime security implementation: standalone bridge and
-  host files, listener disable semantics, key preparation, bounded lifecycle,
-  and rendered-model tests. Target packet flow and authentication remain
-  explicitly unverified below.
+      host files, listener disable semantics, key preparation, bounded lifecycle,
+      and rendered-model tests. Target packet flow and authentication remain
+      explicitly unverified below.
 - [x] Phase 3 — reproducible-build inputs: one Linux/amd64 target, aligned
-  version source, pinned base manifests, strict download handling, and a
-  fail-closed archive lock. The archive digest and target-runtime behavior
-  remain deliberately unverified until operator review/acceptance.
+      version source, pinned base manifests, strict download handling, and a
+      fail-closed archive lock. The archive digest and target-runtime behavior
+      remain deliberately unverified until operator review/acceptance.
 - [x] Phase 4 — layered tests and CI isolation: deterministic unit/config tests,
-  unique no-credential container resources, strict aggregate gates, and an
-  explicit user-only encrypted read-only protocol check.
+      unique no-credential container resources, strict aggregate gates, and an
+      explicit user-only encrypted read-only protocol check.
 - [x] Phase 5 — documentation reconciliation and final acceptance matrix:
-  remove stale claims, preserve upstream attribution, and report every target
-  check as PASSED, FAILED, SKIPPED, or NOT RUN.
+      remove stale claims, preserve upstream attribution, and report every target
+      check as PASSED, FAILED, SKIPPED, or NOT RUN.
 - [x] Phase 6 — concise Chinese README with detailed deployment material routed
-  to `docs/`.
+      to `docs/`.
 - [x] Phases 7–9 — iteration history for the local artifact lock, unified
-  foreground initialization and scoped Expect proxy; superseded designs remain
-  labeled as such below.
+      foreground initialization and scoped Expect proxy; superseded designs remain
+      labeled as such below.
 - [x] Phase 10 — optional wrapper-only environment password, single submission,
-  no automatic retry, fake-secret redaction tests and synchronized docs.
+      no automatic retry, fake-secret redaction tests and synchronized docs.
 - [x] Phase 11 — source-free release bundle, digest-pinned image-only Compose,
-  operator launcher, checksum, and immutable tag-triggered release workflow.
+      operator launcher, checksum, and immutable tag-triggered release workflow.
 - [x] Phase 12 — first-release artifact lock, user-facing README, and explicit
-  `v10.10.7008-r1` release notes and tag policy.
+      `v10.10.7008-r1` release notes and tag policy.
 
 The phases deliberately keep login, security configuration, build hardening,
 and test/CI work separate. Target-platform real login, SDK readiness, image
@@ -435,24 +435,24 @@ Phase baseline commit: `74170f34e570fcdcac9349e0ecfb8e4b5fb963af`.
 
 ### Checks
 
-| Check | Result | Notes |
-| --- | --- | --- |
-| Official 10.10 command-line and 10.10.7008 changelog review | PASSED | Supports interactive startup, remembered-login arguments, phone `area_code`, and removal of XML account/password fields. |
-| `bash -n script/start.sh script/start.test.sh` | PASSED | Strict-mode scripts parse successfully. |
-| `bash script/start.test.sh` | PASSED | 16 fake-OpenD checks passed; no Docker, network, credentials, or real login. |
-| Template XML parse with Python standard library | PASSED | `FutuOpenD.xml` is well-formed before wrapper substitution. |
-| `package.json` parse with Python standard library | PASSED | JSON is valid. |
-| Compose and publish-workflow YAML parse with Ruby Psych | PASSED | Syntax trees parsed without accessing `.env` or rendering Compose values. |
-| `docker compose run --help` outside the project directory | PASSED | Confirmed `--interactive` and automatic TTY behavior without loading project configuration or contacting the daemon. |
-| `git diff --check` | PASSED | No whitespace errors at the checkpoint. |
-| ShellCheck, shfmt, and pre-commit hooks | NOT RUN | These tools are not installed/on `PATH` in the current environment. |
-| Node unit tests and skipped E2E reporting | NOT RUN | Node/npm are unavailable in the current environment. |
-| Docker Compose model/build | NOT RUN | Docker daemon is unavailable inside the sandbox; no deployment was attempted. |
-| Linux/amd64 `FutuOpenD -help` parameter gate | NOT RUN | Added to publish CI, but not executed locally. CI must confirm `login_account`, `login_by_remember`, `area_code`, and `cfg_file`. |
-| OpenD monitor/daemon process topology | NOT RUN | No `no_monitor` assumption was added; must be observed on the target binary before changing argv. |
-| First interactive real login and remember selection | NOT RUN | User-only private-terminal step; agents must not execute it. |
-| Routine startup from valid persisted state | NOT RUN | Requires the preceding user-only initialization and actual Futu session result. |
-| Missing/expired remembered-state reauthentication | NOT RUN | README provides the non-destructive manual flow; actual behavior remains user-verified. |
+| Check                                                       | Result  | Notes                                                                                                                             |
+| ----------------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Official 10.10 command-line and 10.10.7008 changelog review | PASSED  | Supports interactive startup, remembered-login arguments, phone `area_code`, and removal of XML account/password fields.          |
+| `bash -n script/start.sh script/start.test.sh`              | PASSED  | Strict-mode scripts parse successfully.                                                                                           |
+| `bash script/start.test.sh`                                 | PASSED  | 16 fake-OpenD checks passed; no Docker, network, credentials, or real login.                                                      |
+| Template XML parse with Python standard library             | PASSED  | `FutuOpenD.xml` is well-formed before wrapper substitution.                                                                       |
+| `package.json` parse with Python standard library           | PASSED  | JSON is valid.                                                                                                                    |
+| Compose and publish-workflow YAML parse with Ruby Psych     | PASSED  | Syntax trees parsed without accessing `.env` or rendering Compose values.                                                         |
+| `docker compose run --help` outside the project directory   | PASSED  | Confirmed `--interactive` and automatic TTY behavior without loading project configuration or contacting the daemon.              |
+| `git diff --check`                                          | PASSED  | No whitespace errors at the checkpoint.                                                                                           |
+| ShellCheck, shfmt, and pre-commit hooks                     | NOT RUN | These tools are not installed/on `PATH` in the current environment.                                                               |
+| Node unit tests and skipped E2E reporting                   | NOT RUN | Node/npm are unavailable in the current environment.                                                                              |
+| Docker Compose model/build                                  | NOT RUN | Docker daemon is unavailable inside the sandbox; no deployment was attempted.                                                     |
+| Linux/amd64 `FutuOpenD -help` parameter gate                | NOT RUN | Added to publish CI, but not executed locally. CI must confirm `login_account`, `login_by_remember`, `area_code`, and `cfg_file`. |
+| OpenD monitor/daemon process topology                       | NOT RUN | No `no_monitor` assumption was added; must be observed on the target binary before changing argv.                                 |
+| First interactive real login and remember selection         | NOT RUN | User-only private-terminal step; agents must not execute it.                                                                      |
+| Routine startup from valid persisted state                  | NOT RUN | Requires the preceding user-only initialization and actual Futu session result.                                                   |
+| Missing/expired remembered-state reauthentication           | NOT RUN | README provides the non-destructive manual flow; actual behavior remains user-verified.                                           |
 
 ### Remaining manual acceptance
 
@@ -503,23 +503,23 @@ plus the existing uncommitted Phase 1 changes. Those changes were preserved.
 
 ### Checks
 
-| Check | Result | Notes |
-| --- | --- | --- |
-| `bash -n` for startup, key-init, and Compose test scripts | PASSED | All five shell files parsed. |
-| `bash script/start.test.sh` | PASSED | 19 fake-OpenD checks, including independent Telnet, unset/empty listeners, API-key requirement, and WebSocket guard. |
-| `bash script/init-key.test.sh` | PASSED | 8 fake-key checks for metadata, encrypted/wrong formats, and requested failure paths. |
-| `bash script/compose.test.sh` | PASSED | 6 assertions after four real `docker compose config --format json` renders using explicit fake env files. |
-| Default bridge effective model | PASSED | No host mode; only API published on `127.0.0.1`; network not internal; optional listeners empty. |
-| Standalone host effective model | PASSED | Host network present, no ports, API bind `127.0.0.1`; optional listeners empty. |
-| Custom API port model | PASSED | `12345` reached container environment, target port, and loopback publication. |
-| State/key volume names across files | PASSED | Same explicit test project resolved identical names in both standalone files. |
-| Docker daemon, image build, or container execution | NOT RUN | Compose rendering used the client only; sandbox daemon access remains unavailable. |
-| Actual key initializer inside the Linux/amd64 image | NOT RUN | Offline test used fake material/current test UID/GID; image tools and mounts need target verification. |
-| Bridge outbound/authentication and SDK connection | NOT RUN | Requires user-controlled Linux/amd64 runtime and real login; no network behavior is claimed. |
-| Host-network authentication and SDK connection | NOT RUN | Compatibility flow is documented but not executed. |
-| Same-network container SDK connection | NOT RUN | Example is documentation only; the trust boundary is explicit. |
-| Shutdown grace, bounded restart, and Docker daemon reboot behavior | NOT RUN | Effective configuration is verified; real OpenD lifecycle behavior is not. |
-| Existing state-volume ownership/migration | NOT RUN | Only a metadata-check command is documented; no production volume was accessed. |
+| Check                                                              | Result  | Notes                                                                                                                |
+| ------------------------------------------------------------------ | ------- | -------------------------------------------------------------------------------------------------------------------- |
+| `bash -n` for startup, key-init, and Compose test scripts          | PASSED  | All five shell files parsed.                                                                                         |
+| `bash script/start.test.sh`                                        | PASSED  | 19 fake-OpenD checks, including independent Telnet, unset/empty listeners, API-key requirement, and WebSocket guard. |
+| `bash script/init-key.test.sh`                                     | PASSED  | 8 fake-key checks for metadata, encrypted/wrong formats, and requested failure paths.                                |
+| `bash script/compose.test.sh`                                      | PASSED  | 6 assertions after four real `docker compose config --format json` renders using explicit fake env files.            |
+| Default bridge effective model                                     | PASSED  | No host mode; only API published on `127.0.0.1`; network not internal; optional listeners empty.                     |
+| Standalone host effective model                                    | PASSED  | Host network present, no ports, API bind `127.0.0.1`; optional listeners empty.                                      |
+| Custom API port model                                              | PASSED  | `12345` reached container environment, target port, and loopback publication.                                        |
+| State/key volume names across files                                | PASSED  | Same explicit test project resolved identical names in both standalone files.                                        |
+| Docker daemon, image build, or container execution                 | NOT RUN | Compose rendering used the client only; sandbox daemon access remains unavailable.                                   |
+| Actual key initializer inside the Linux/amd64 image                | NOT RUN | Offline test used fake material/current test UID/GID; image tools and mounts need target verification.               |
+| Bridge outbound/authentication and SDK connection                  | NOT RUN | Requires user-controlled Linux/amd64 runtime and real login; no network behavior is claimed.                         |
+| Host-network authentication and SDK connection                     | NOT RUN | Compatibility flow is documented but not executed.                                                                   |
+| Same-network container SDK connection                              | NOT RUN | Example is documentation only; the trust boundary is explicit.                                                       |
+| Shutdown grace, bounded restart, and Docker daemon reboot behavior | NOT RUN | Effective configuration is verified; real OpenD lifecycle behavior is not.                                           |
+| Existing state-volume ownership/migration                          | NOT RUN | Only a metadata-check command is documented; no production volume was accessed.                                      |
 
 ### Remaining target acceptance
 
@@ -579,23 +579,23 @@ plus the existing uncommitted Phase 1 and Phase 2 changes. They were preserved.
 
 ### Checks
 
-| Check | Result | Notes |
-| --- | --- | --- |
-| Shell syntax for startup, key, download, build-config, and Compose scripts | PASSED | All eight shell files parsed with the available Bash. |
-| `bash script/start.test.sh` | PASSED | 19 fake-OpenD wrapper assertions; no binary, credentials, network, or login. |
-| `bash script/init-key.test.sh` | PASSED | 8 fake-key assertions; only temporary test material. |
-| `bash script/download_futu_opend.test.sh` | PASSED | 12 local-fixture/fake-curl assertions, including HTTP 22, timeout 28, digest mismatch, illegal inputs, invalid/root-invalid archives, TOFU isolation, atomic preservation, and cleanup. |
-| `bash script/build_config.test.sh` | PASSED | 4 static assertions align artifact metadata, both base manifests, single target/no fallback, UID/layout, architecture, and version-only CI tag policy. |
-| `bash script/compose.test.sh` | PASSED | 7 effective-model assertions; missing digest fails closed, both files select `runtime`/amd64, and prior network/key checks remain green. |
-| `script/update_docs_version.test.js` | PASSED | 19 assertions passed with bundled Node; includes digest sync/read validation. |
-| `script/check_version.test.js` | NOT RUN | Test process could not load the declared `jsdom` dependency because project dependencies are not installed in this environment. Source syntax passed; no network install was performed. |
-| JavaScript syntax checks | PASSED | Both version scripts and both unit-test files parse with bundled Node. |
-| Official OpenD archive download / SHA-256 lock | NOT RUN | DNS resolution failed inside the sandbox; no sandbox bypass was used. No publisher checksum/signature was found, so the lock remains explicitly `null`. |
-| Docker build / no-credential smoke / image inspection | NOT RUN | Docker daemon is unavailable and the artifact is intentionally unlocked. CI now gates exact version, SHA, amd64 architecture, UID/GID, label, help parameters, and fake wrapper startup once locked. |
-| Ubuntu 18.04 binary dependency/startup compatibility | NOT RUN | Requires the exact locked official binary in Linux/amd64; build success alone will not satisfy this check. |
-| Ubuntu 22.04-or-newer runtime migration | NOT RUN | Requires `ldd`/loader/library review plus help and no-credential runtime behavior before changing the compatibility baseline. |
-| Byte-for-byte repeat build and final registry digest | NOT RUN | Requires two clean Linux/amd64 builds and, for a registry digest, an explicitly authorized publish/pull workflow. |
-| Real login, remembered-state, SDK/API, and network acceptance | NOT RUN | User-only private-terminal acceptance; unchanged from prior phases. |
+| Check                                                                      | Result  | Notes                                                                                                                                                                                                |
+| -------------------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shell syntax for startup, key, download, build-config, and Compose scripts | PASSED  | All eight shell files parsed with the available Bash.                                                                                                                                                |
+| `bash script/start.test.sh`                                                | PASSED  | 19 fake-OpenD wrapper assertions; no binary, credentials, network, or login.                                                                                                                         |
+| `bash script/init-key.test.sh`                                             | PASSED  | 8 fake-key assertions; only temporary test material.                                                                                                                                                 |
+| `bash script/download_futu_opend.test.sh`                                  | PASSED  | 12 local-fixture/fake-curl assertions, including HTTP 22, timeout 28, digest mismatch, illegal inputs, invalid/root-invalid archives, TOFU isolation, atomic preservation, and cleanup.              |
+| `bash script/build_config.test.sh`                                         | PASSED  | 4 static assertions align artifact metadata, both base manifests, single target/no fallback, UID/layout, architecture, and version-only CI tag policy.                                               |
+| `bash script/compose.test.sh`                                              | PASSED  | 7 effective-model assertions; missing digest fails closed, both files select `runtime`/amd64, and prior network/key checks remain green.                                                             |
+| `script/update_docs_version.test.js`                                       | PASSED  | 19 assertions passed with bundled Node; includes digest sync/read validation.                                                                                                                        |
+| `script/check_version.test.js`                                             | NOT RUN | Test process could not load the declared `jsdom` dependency because project dependencies are not installed in this environment. Source syntax passed; no network install was performed.              |
+| JavaScript syntax checks                                                   | PASSED  | Both version scripts and both unit-test files parse with bundled Node.                                                                                                                               |
+| Official OpenD archive download / SHA-256 lock                             | NOT RUN | DNS resolution failed inside the sandbox; no sandbox bypass was used. No publisher checksum/signature was found, so the lock remains explicitly `null`.                                              |
+| Docker build / no-credential smoke / image inspection                      | NOT RUN | Docker daemon is unavailable and the artifact is intentionally unlocked. CI now gates exact version, SHA, amd64 architecture, UID/GID, label, help parameters, and fake wrapper startup once locked. |
+| Ubuntu 18.04 binary dependency/startup compatibility                       | NOT RUN | Requires the exact locked official binary in Linux/amd64; build success alone will not satisfy this check.                                                                                           |
+| Ubuntu 22.04-or-newer runtime migration                                    | NOT RUN | Requires `ldd`/loader/library review plus help and no-credential runtime behavior before changing the compatibility baseline.                                                                        |
+| Byte-for-byte repeat build and final registry digest                       | NOT RUN | Requires two clean Linux/amd64 builds and, for a registry digest, an explicitly authorized publish/pull workflow.                                                                                    |
+| Real login, remembered-state, SDK/API, and network acceptance              | NOT RUN | User-only private-terminal acceptance; unchanged from prior phases.                                                                                                                                  |
 
 ### Remaining target acceptance
 
@@ -659,21 +659,21 @@ plus the existing uncommitted Phase 1–3 changes. All were preserved.
 
 ### Checks
 
-| Check | Result | Notes |
-| --- | --- | --- |
-| `bash script/layer1.test.sh` | PASSED | 73 shell/config assertions: startup 19, key 8, download 12, build model 4, Compose 7, fake live SDK 10, CI policy 6, gate outcomes 7. No Docker daemon, networked OpenD, credentials, or real key. |
-| Signal-test stabilization | FAILED, then PASSED | One full Layer 1 run exceeded the old one-second fake-process readiness window. The test now waits up to five seconds for an explicit post-trap marker; standalone startup and the following full Layer 1 rerun both passed. No production code was relaxed. |
-| Legacy-value and key-content redaction | PASSED | Fake password, fake MD5 and fake private-key canaries were absent from captured stdout/stderr. |
-| Custom API-port consistency | PASSED | Rendered Compose aligned runtime port, host-loopback target/publication and health command; fake SDK received client port `12345`. |
-| Layer 3 default command | SKIPPED | `RUN_LIVE_TESTS` was not enabled; the script reports the explicit skip before SDK import. |
-| Layer 3 fake-SDK unit test | PASSED | 10 checks cover quote-only success, optional trade condition, encryption, custom port, key permissions, redaction, missing prerequisites, both timeouts, `close()`, and close failure. This is not a real login result. |
-| `script/container_smoke.test.sh` | FAILED (preflight) | Docker daemon was unavailable. No image, container, or volume was created; actual build/help/stop assertions were therefore NOT RUN. |
-| Node version-unit suite | NOT RUN | The workspace still lacks installed `jsdom`; CI installs locked dependencies with `npm ci` before `test:layer1`. JavaScript source syntax is checked separately. |
-| Workflow policy regression | PASSED | 6 static checks cover full Action SHAs, PR read-only/no-publish policy, exact skip gate, publish ordering, review-only updater, and no sensitive artifacts. |
-| `bash script/ci_gate.test.sh` | PASSED | 7 outcome combinations prove required success, the exact docs-only skip, and rejection of upstream failure, failure, cancellation, unexpected success, and missing classification. |
-| GitHub-hosted PR and publish workflows | NOT RUN | Workflow files were validated locally only; no remote run, token use, push, package publication, or repository setting change occurred. |
-| Real encrypted `get_global_state()` | NOT RUN | Deliberately user-only. No password, OTP, login cache, private key, or account connection was accessed. |
-| `qot_logined` / optional `trd_logined` on a real account | NOT RUN | Fake SDK results do not count. The user must run Layer 3 and report the actual result. |
+| Check                                                    | Result              | Notes                                                                                                                                                                                                                                                        |
+| -------------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bash script/layer1.test.sh`                             | PASSED              | 73 shell/config assertions: startup 19, key 8, download 12, build model 4, Compose 7, fake live SDK 10, CI policy 6, gate outcomes 7. No Docker daemon, networked OpenD, credentials, or real key.                                                           |
+| Signal-test stabilization                                | FAILED, then PASSED | One full Layer 1 run exceeded the old one-second fake-process readiness window. The test now waits up to five seconds for an explicit post-trap marker; standalone startup and the following full Layer 1 rerun both passed. No production code was relaxed. |
+| Legacy-value and key-content redaction                   | PASSED              | Fake password, fake MD5 and fake private-key canaries were absent from captured stdout/stderr.                                                                                                                                                               |
+| Custom API-port consistency                              | PASSED              | Rendered Compose aligned runtime port, host-loopback target/publication and health command; fake SDK received client port `12345`.                                                                                                                           |
+| Layer 3 default command                                  | SKIPPED             | `RUN_LIVE_TESTS` was not enabled; the script reports the explicit skip before SDK import.                                                                                                                                                                    |
+| Layer 3 fake-SDK unit test                               | PASSED              | 10 checks cover quote-only success, optional trade condition, encryption, custom port, key permissions, redaction, missing prerequisites, both timeouts, `close()`, and close failure. This is not a real login result.                                      |
+| `script/container_smoke.test.sh`                         | FAILED (preflight)  | Docker daemon was unavailable. No image, container, or volume was created; actual build/help/stop assertions were therefore NOT RUN.                                                                                                                         |
+| Node version-unit suite                                  | NOT RUN             | The workspace still lacks installed `jsdom`; CI installs locked dependencies with `npm ci` before `test:layer1`. JavaScript source syntax is checked separately.                                                                                             |
+| Workflow policy regression                               | PASSED              | 6 static checks cover full Action SHAs, PR read-only/no-publish policy, exact skip gate, publish ordering, review-only updater, and no sensitive artifacts.                                                                                                  |
+| `bash script/ci_gate.test.sh`                            | PASSED              | 7 outcome combinations prove required success, the exact docs-only skip, and rejection of upstream failure, failure, cancellation, unexpected success, and missing classification.                                                                           |
+| GitHub-hosted PR and publish workflows                   | NOT RUN             | Workflow files were validated locally only; no remote run, token use, push, package publication, or repository setting change occurred.                                                                                                                      |
+| Real encrypted `get_global_state()`                      | NOT RUN             | Deliberately user-only. No password, OTP, login cache, private key, or account connection was accessed.                                                                                                                                                      |
+| `qot_logined` / optional `trd_logined` on a real account | NOT RUN             | Fake SDK results do not count. The user must run Layer 3 and report the actual result.                                                                                                                                                                       |
 
 ### Remaining acceptance
 
@@ -706,13 +706,13 @@ from the build context.
 
 Checks performed for this phase:
 
-| Check | Result | Notes |
-| --- | --- | --- |
-| `bash -n script/initialize-and-start.sh script/initialize-and-start.test.sh` | PASSED | Both scripts parse successfully. |
-| `bash script/initialize-and-start.test.sh` | PASSED | 3 fake-Docker/fake-OpenSSL tests cover key generation and mode, operation ordering, explicit confirmation, interactive failure, and refusal to start the background service. No Docker daemon, OpenD, credentials, network, volume, or real key was used. |
-| `bash script/layer1.test.sh` | PASSED | 77 offline assertions passed after adding the unified workflow and build-context regression coverage. The Compose checks only rendered configuration; no container was started. |
-| `shellcheck` | NOT RUN | `shellcheck` is not installed in the current environment. Bash syntax and behavioral tests passed instead. |
-| Real interactive login and transition to remembered startup | NOT RUN | User-only private-terminal acceptance remains required. |
+| Check                                                                        | Result  | Notes                                                                                                                                                                                                                                                     |
+| ---------------------------------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bash -n script/initialize-and-start.sh script/initialize-and-start.test.sh` | PASSED  | Both scripts parse successfully.                                                                                                                                                                                                                          |
+| `bash script/initialize-and-start.test.sh`                                   | PASSED  | 3 fake-Docker/fake-OpenSSL tests cover key generation and mode, operation ordering, explicit confirmation, interactive failure, and refusal to start the background service. No Docker daemon, OpenD, credentials, network, volume, or real key was used. |
+| `bash script/layer1.test.sh`                                                 | PASSED  | 77 offline assertions passed after adding the unified workflow and build-context regression coverage. The Compose checks only rendered configuration; no container was started.                                                                           |
+| `shellcheck`                                                                 | NOT RUN | `shellcheck` is not installed in the current environment. Bash syntax and behavioral tests passed instead.                                                                                                                                                |
+| Real interactive login and transition to remembered startup                  | NOT RUN | User-only private-terminal acceptance remains required.                                                                                                                                                                                                   |
 
 ## Phase 6 — concise Chinese project entry point
 
@@ -722,10 +722,10 @@ and test material was retained in `docs/deployment.md`; `docs/E2E.md` remains
 the source for test-layer details. Commands and safety boundaries were not
 removed or changed as part of this documentation split.
 
-| Check | Result | Notes |
-| --- | --- | --- |
-| README/document structure and code-fence check | PASSED | Local checks confirm balanced Markdown code fences, required quick-start commands and links to all detailed documents. |
-| Runtime code and Compose behavior | NOT RUN | This phase changes documentation routing only. |
+| Check                                          | Result  | Notes                                                                                                                  |
+| ---------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------- |
+| README/document structure and code-fence check | PASSED  | Local checks confirm balanced Markdown code fences, required quick-start commands and links to all detailed documents. |
+| Runtime code and Compose behavior              | NOT RUN | This phase changes documentation routing only.                                                                         |
 
 ## Phase 7 — confirmed automatic local artifact lock
 
@@ -748,13 +748,13 @@ Layer 2 or publishing can pass. The unified launcher deliberately removes a
 same-named shell override when invoking Compose so an exported empty variable
 cannot hide the value just written to the explicit env file.
 
-| Check | Result | Notes |
-| --- | --- | --- |
-| `bash -n` for lock and unified-start scripts/tests | PASSED | All four Bash files parse successfully. |
-| `bash script/lock-artifact.test.sh` | PASSED | 3 fake-curl/local-archive checks cover confirmed atomic write and mode, rejection without changes, and reuse without downloading. |
-| `bash script/layer1.test.sh` | PASSED | 80 offline assertions passed. No real network, Docker container, credential, key or `.env` was used. |
-| Real official artifact TOFU review | NOT RUN | The user must review and confirm the candidate in a private terminal. |
-| Real image build and login | NOT RUN | Still require separate target-platform and user-only acceptance. |
+| Check                                              | Result  | Notes                                                                                                                             |
+| -------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `bash -n` for lock and unified-start scripts/tests | PASSED  | All four Bash files parse successfully.                                                                                           |
+| `bash script/lock-artifact.test.sh`                | PASSED  | 3 fake-curl/local-archive checks cover confirmed atomic write and mode, rejection without changes, and reuse without downloading. |
+| `bash script/layer1.test.sh`                       | PASSED  | 80 offline assertions passed. No real network, Docker container, credential, key or `.env` was used.                              |
+| Real official artifact TOFU review                 | NOT RUN | The user must review and confirm the candidate in a private terminal.                                                             |
+| Real image build and login                         | NOT RUN | Still require separate target-platform and user-only acceptance.                                                                  |
 
 ## Phase 8 — official prompts only during first foreground session
 
@@ -774,13 +774,13 @@ followed by project confirmation. This first session has no long-running
 background restart policy; after it ends, later starts use the documented
 remembered-state `docker compose up -d` flow.
 
-| Check | Result | Notes |
-| --- | --- | --- |
-| Bash syntax for lock/initialize scripts and tests | PASSED | All four files parse successfully. |
-| `bash script/lock-artifact.test.sh` | PASSED | 3 local-fixture/fake-curl checks cover automatic atomic mode-0600 write, failure without mutation, and existing-lock reuse. |
-| `bash script/initialize-and-start.test.sh` | PASSED | 3 fake-Docker/fake-OpenSSL checks cover `--service-ports`, a single foreground container, key generation, and exit propagation. |
-| Official interactive prompts | NOT RUN | OpenD may still require account, password, remember-password selection or verification; only the user may perform them. |
-| Real API availability after interactive login | NOT RUN | Requires user-run login plus encrypted SDK acceptance. |
+| Check                                             | Result  | Notes                                                                                                                           |
+| ------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Bash syntax for lock/initialize scripts and tests | PASSED  | All four files parse successfully.                                                                                              |
+| `bash script/lock-artifact.test.sh`               | PASSED  | 3 local-fixture/fake-curl checks cover automatic atomic mode-0600 write, failure without mutation, and existing-lock reuse.     |
+| `bash script/initialize-and-start.test.sh`        | PASSED  | 3 fake-Docker/fake-OpenSSL checks cover `--service-ports`, a single foreground container, key generation, and exit propagation. |
+| Official interactive prompts                      | NOT RUN | OpenD may still require account, password, remember-password selection or verification; only the user may perform them.         |
+| Real API availability after interactive login     | NOT RUN | Requires user-run login plus encrypted SDK acceptance.                                                                          |
 
 ## Phase 9 — scoped Expect convenience proxy (superseded by Phase 10)
 
@@ -801,12 +801,12 @@ OpenD may echo that expanded command, so authentication sessions must not be
 recorded or uploaded. Picture verification and unknown future prompts remain
 manual.
 
-| Check | Result | Notes |
-| --- | --- | --- |
-| `bash script/interactive-login.test.sh` | PASSED | 2 fake-OpenD checks prove account fill, automatic `Y`, bare six-digit expansion, missing-account rejection and absence of the fake password from captured output. |
-| `bash script/initialize-and-start.test.sh` | PASSED | The fake Compose login now exercises the Expect wrapper while preserving single-container and exit-status behavior. |
-| `bash script/layer1.test.sh` | PASSED | 82 offline assertions passed after adding the two Expect checks. No real account, password, verification code, OpenD, network download or container was used. |
-| Real 10.10.7008 prompt compatibility | NOT RUN | Chinese prompt matching and actual login remain user-only acceptance. |
+| Check                                      | Result  | Notes                                                                                                                                                             |
+| ------------------------------------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bash script/interactive-login.test.sh`    | PASSED  | 2 fake-OpenD checks prove account fill, automatic `Y`, bare six-digit expansion, missing-account rejection and absence of the fake password from captured output. |
+| `bash script/initialize-and-start.test.sh` | PASSED  | The fake Compose login now exercises the Expect wrapper while preserving single-container and exit-status behavior.                                               |
+| `bash script/layer1.test.sh`               | PASSED  | 82 offline assertions passed after adding the two Expect checks. No real account, password, verification code, OpenD, network download or container was used.     |
+| Real 10.10.7008 prompt compatibility       | NOT RUN | Chinese prompt matching and actual login remain user-only acceptance.                                                                                             |
 
 ## Phase 10 — user-local environment password convenience
 
@@ -834,13 +834,13 @@ they represented removed OpenD configuration, while `FUTU_LOGIN_PASSWORD` is
 only input to the user-run host prompt proxy. No password or verification code
 was supplied to a real OpenD process during this phase.
 
-| Check | Result | Notes |
-| --- | --- | --- |
-| `bash script/interactive-login.test.sh` | PASSED | 4 fake-OpenD checks cover manual/env password paths, special characters, single submission, no retry and output/child-env redaction. |
-| `bash script/initialize-and-start.test.sh` | PASSED | 3 fake-Docker/OpenSSL checks cover `.env` and shell override precedence, mode `0600`, redaction and existing single-container behavior. |
-| `bash script/layer1.test.sh` | PASSED | 85 offline assertions passed; no real account, OpenD, network download or container was used. The Compose model also excludes the fake wrapper password. |
-| `npm run test:offline` | NOT RUN | `npm` is not installed in the current host environment; its underlying `bash script/layer1.test.sh` command was run directly and passed. |
-| Real 10.10.7008 prompt compatibility and login | NOT RUN | Must be performed by the user in a private terminal. |
+| Check                                          | Result  | Notes                                                                                                                                                    |
+| ---------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bash script/interactive-login.test.sh`        | PASSED  | 4 fake-OpenD checks cover manual/env password paths, special characters, single submission, no retry and output/child-env redaction.                     |
+| `bash script/initialize-and-start.test.sh`     | PASSED  | 3 fake-Docker/OpenSSL checks cover `.env` and shell override precedence, mode `0600`, redaction and existing single-container behavior.                  |
+| `bash script/layer1.test.sh`                   | PASSED  | 85 offline assertions passed; no real account, OpenD, network download or container was used. The Compose model also excludes the fake wrapper password. |
+| `npm run test:offline`                         | NOT RUN | `npm` is not installed in the current host environment; its underlying `bash script/layer1.test.sh` command was run directly and passed.                 |
+| Real 10.10.7008 prompt compatibility and login | NOT RUN | Must be performed by the user in a private terminal.                                                                                                     |
 
 ## Phase 11 — source-free release distribution
 
@@ -862,16 +862,16 @@ resolves its registry digest, builds the source-free bundle, and creates the
 GitHub Release. No release, image push, tag, or remote setting was created or
 changed locally.
 
-| Check | Result | Notes |
-| --- | --- | --- |
-| `bash script/release_bundle.test.sh` | PASSED | 3 checks cover digest pinning, source-free contents, checksum, launcher start/stop arguments, secret exclusion, and volume-preserving stop. |
-| Release Compose render | PASSED | Docker Compose accepted a generated bundle using a fake digest and explicit temporary env file; no daemon or image pull was used. |
-| Release workflow YAML parse | PASSED | Ruby parsed the new workflow successfully. |
-| `bash script/ci_config.test.sh` | PASSED | 7 policy checks include tag-only release ordering, permissions, digest resolution, and source-free bundle publication. |
-| `bash script/build_config.test.sh` | PASSED | Existing 5 build/platform/publication assertions remain green. |
-| `git diff --check` | PASSED | No whitespace errors at the phase checkpoint. |
-| Real tagged GitHub Release and GHCR digest | NOT RUN | Requires an approved artifact lock and an explicit remote tag push; neither was performed. |
-| Real login and remembered startup from the bundle | NOT RUN | User-only Linux/amd64 acceptance; no credentials, key, session, or verification code were accessed. |
+| Check                                             | Result  | Notes                                                                                                                                       |
+| ------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bash script/release_bundle.test.sh`              | PASSED  | 3 checks cover digest pinning, source-free contents, checksum, launcher start/stop arguments, secret exclusion, and volume-preserving stop. |
+| Release Compose render                            | PASSED  | Docker Compose accepted a generated bundle using a fake digest and explicit temporary env file; no daemon or image pull was used.           |
+| Release workflow YAML parse                       | PASSED  | Ruby parsed the new workflow successfully.                                                                                                  |
+| `bash script/ci_config.test.sh`                   | PASSED  | 7 policy checks include tag-only release ordering, permissions, digest resolution, and source-free bundle publication.                      |
+| `bash script/build_config.test.sh`                | PASSED  | Existing 5 build/platform/publication assertions remain green.                                                                              |
+| `git diff --check`                                | PASSED  | No whitespace errors at the phase checkpoint.                                                                                               |
+| Real tagged GitHub Release and GHCR digest        | NOT RUN | Requires an approved artifact lock and an explicit remote tag push; neither was performed.                                                  |
+| Real login and remembered startup from the bundle | NOT RUN | User-only Linux/amd64 acceptance; no credentials, key, session, or verification code were accessed.                                         |
 
 ## Phase 12 — first release preparation
 
@@ -890,12 +890,12 @@ platform, lifecycle, test boundary, Ubuntu 18.04 compatibility limitation, and
 non-affiliation. The tag workflow consumes this checked-in notes file instead
 of generating generic notes.
 
-| Check | Result | Notes |
-| --- | --- | --- |
-| Official-HTTPS temporary download and archive validation | PASSED | Candidate SHA-256 was calculated after the fixed-origin download and path validation; no archive was retained. |
-| `bash script/layer1.test.sh` | PASSED | Offline wrapper/config/release/CI suites passed without credentials or a Docker daemon. |
-| Workflow YAML and JSON parsing | PASSED | All workflow YAML plus `opend_version.json` and `package.json` parsed successfully. |
-| `git diff --check` | PASSED | No whitespace errors before the release commit. |
-| Full npm Layer 1 | NOT RUN | Node and npm are unavailable on this host; the release workflow installs dependencies and reruns it. |
-| Local Layer 2 image smoke | NOT RUN | Docker daemon is unavailable; the release workflow must pass it before registry authentication. |
-| Real login / SDK readiness | NOT RUN | Remains user-only and is not a release-workflow claim. |
+| Check                                                    | Result  | Notes                                                                                                          |
+| -------------------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------- |
+| Official-HTTPS temporary download and archive validation | PASSED  | Candidate SHA-256 was calculated after the fixed-origin download and path validation; no archive was retained. |
+| `bash script/layer1.test.sh`                             | PASSED  | Offline wrapper/config/release/CI suites passed without credentials or a Docker daemon.                        |
+| Workflow YAML and JSON parsing                           | PASSED  | All workflow YAML plus `opend_version.json` and `package.json` parsed successfully.                            |
+| `git diff --check`                                       | PASSED  | No whitespace errors before the release commit.                                                                |
+| Full npm Layer 1                                         | NOT RUN | Node and npm are unavailable on this host; the release workflow installs dependencies and reruns it.           |
+| Local Layer 2 image smoke                                | NOT RUN | Docker daemon is unavailable; the release workflow must pass it before registry authentication.                |
+| Real login / SDK readiness                               | NOT RUN | Remains user-only and is not a release-workflow claim.                                                         |

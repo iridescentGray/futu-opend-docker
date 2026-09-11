@@ -2,7 +2,8 @@
 
 set -Eeuo pipefail
 
-readonly root_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+root_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+readonly root_dir
 test_root=$(mktemp -d "${TMPDIR:-/tmp}/futu-release-test.XXXXXX")
 cleanup() { rm -rf -- "$test_root"; }
 trap cleanup EXIT HUP INT TERM
@@ -22,12 +23,23 @@ for file in compose.yaml env.example futu-opend interactive-login.exp README.txt
   [[ -f $bundle/$file ]]
 done
 grep -Fq "FUTU_OPEND_IMAGE=$image" "$bundle/env.example"
+# The Compose interpolation token is literal test data.
+# shellcheck disable=SC2016
 grep -Fq 'image: ${FUTU_OPEND_IMAGE:' "$bundle/compose.yaml"
-! grep -Fq 'build:' "$bundle/compose.yaml"
+if grep -Fq 'build:' "$bundle/compose.yaml"; then
+  printf 'release Compose unexpectedly contains a local build\n' >&2
+  exit 1
+fi
 grep -Fq 'run --rm --interactive --service-ports' "$bundle/futu-opend"
 grep -Fq -- '-e FUTU_LOGIN_MODE=interactive futu-opend' "$bundle/futu-opend"
-! grep -Fq 'down -v' "$bundle/futu-opend"
-! find "$bundle" -type f \( -name Dockerfile -o -name package.json -o -name '*.test.sh' \) | grep -q .
+if grep -Fq 'down -v' "$bundle/futu-opend"; then
+  printf 'release launcher contains destructive volume teardown\n' >&2
+  exit 1
+fi
+if find "$bundle" -type f \( -name Dockerfile -o -name package.json -o -name '*.test.sh' \) | grep -q .; then
+  printf 'release bundle unexpectedly contains source/build files\n' >&2
+  exit 1
+fi
 bash -n "$bundle/futu-opend"
 printf 'ok 1 - release bundle contains only operator files and a digest-pinned image\n'
 
@@ -36,6 +48,8 @@ chmod 0600 "$bundle/.env"
 printf '%s\n' 'fake release key material' >"$bundle/futu.pem"
 chmod 0600 "$bundle/futu.pem"
 mkdir "$test_root/fake-bin"
+# These variables expand only when the generated fake Docker command runs.
+# shellcheck disable=SC2016
 printf '%s\n' \
   '#!/usr/bin/env bash' \
   'printf "%s\\n" "$*" >>"$DOCKER_CAPTURE"' \
@@ -49,8 +63,14 @@ grep -Fq "compose --env-file $bundle/.env -f $bundle/compose.yaml up -d" \
   "$test_root/docker.args"
 grep -Fq "compose --env-file $bundle/.env -f $bundle/compose.yaml down" \
   "$test_root/docker.args"
-! grep -Fq -- 'down -v' "$test_root/docker.args"
-! grep -Fq 'FUTU_LOGIN_PASSWORD' "$test_root/docker.args"
+if grep -Fq -- 'down -v' "$test_root/docker.args"; then
+  printf 'release stop attempted destructive volume teardown\n' >&2
+  exit 1
+fi
+if grep -Fq 'FUTU_LOGIN_PASSWORD' "$test_root/docker.args"; then
+  printf 'wrapper-only password name reached Docker arguments\n' >&2
+  exit 1
+fi
 printf 'ok 2 - release launcher starts and stops without exposing wrapper secrets or deleting volumes\n'
 
 if bash "$root_dir/script/build-release-bundle.sh" \

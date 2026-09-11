@@ -7,8 +7,14 @@ test_root=$(mktemp -d "${TMPDIR:-/tmp}/futu-live-unit.XXXXXX")
 trap 'rm -rf -- "$test_root"' EXIT
 
 passes=0
-pass() { passes=$((passes + 1)); printf 'ok %d - %s\n' "$passes" "$1"; }
-fail() { printf 'not ok - %s\n' "$1" >&2; exit 1; }
+pass() {
+  passes=$((passes + 1))
+  printf 'ok %d - %s\n' "$passes" "$1"
+}
+fail() {
+  printf 'not ok - %s\n' "$1" >&2
+  exit 1
+}
 
 python_bin=${PYTHON_BIN:-python3}
 live_script="$root_dir/script/live_readonly.py"

@@ -3,11 +3,11 @@
 The project has three deliberately separate test layers. Passing a lower layer
 must never be reported as a real OpenD login or business-readiness result.
 
-| Layer | Command | Prerequisites | Proves | Does not prove |
-| --- | --- | --- | --- | --- |
-| 1 — unit/config | `npm run test:layer1` | Node dependencies, Bash, Python, Compose CLI for config rendering; no daemon or credentials | Wrapper argv/XML/TTY/signals, permissions, download failures, version/build/Compose/CI contracts, secret-canary redaction | Image execution, real OpenD, login, API readiness |
-| 2 — container smoke | `npm run test:smoke` | Linux/amd64-capable Docker daemon, network for locked build, recorded OpenD SHA-256; no credentials | Actual image build, architecture/user/files/help, wrapper validation, custom-port rendering, controlled PID-1 TERM/exit | Login, remembered session, SDK response, business readiness |
-| 3 — live read-only | `npm run test:live` | Explicit `RUN_LIVE_TESTS=1`, user-initialized/logged-in OpenD, official Python SDK, matching readable RSA key | Encrypted `get_global_state()`, `qot_logined`, optional `trd_logined` | Trading unlock/order ability, paid quote rights, permanent session validity |
+| Layer               | Command               | Prerequisites                                                                                                 | Proves                                                                                                                    | Does not prove                                                              |
+| ------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| 1 — unit/config     | `npm run test:layer1` | Node dependencies, Bash, Python, Compose CLI for config rendering; no daemon or credentials                   | Wrapper argv/XML/TTY/signals, permissions, download failures, version/build/Compose/CI contracts, secret-canary redaction | Image execution, real OpenD, login, API readiness                           |
+| 2 — container smoke | `npm run test:smoke`  | Linux/amd64-capable Docker daemon, network for locked build, recorded OpenD SHA-256; no credentials           | Actual image build, architecture/user/files/help, wrapper validation, custom-port rendering, controlled PID-1 TERM/exit   | Login, remembered session, SDK response, business readiness                 |
+| 3 — live read-only  | `npm run test:live`   | Explicit `RUN_LIVE_TESTS=1`, user-initialized/logged-in OpenD, official Python SDK, matching readable RSA key | Encrypted `get_global_state()`, `qot_logined`, optional `trd_logined`                                                     | Trading unlock/order ability, paid quote rights, permanent session validity |
 
 ## Layer 1 — unit and configuration tests
 
