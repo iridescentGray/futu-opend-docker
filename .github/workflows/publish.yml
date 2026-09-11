@@ -61,11 +61,18 @@ jobs:
       - name: Install Podman Compose provider
         run: sudo apt-get install --yes podman podman-compose
 
-      - name: Run rootless Podman build, Compose, and key-volume smoke
+      - name: Load the exact tested image into rootless Podman
+        run: |
+          docker save --output "$RUNNER_TEMP/futu-opend-smoke.tar" "$SMOKE_IMAGE"
+          podman load --input "$RUNNER_TEMP/futu-opend-smoke.tar"
+
+      - name: Run rootless Podman Compose and key-volume smoke
         run: bash script/podman_smoke.test.sh
         env:
           PODMAN_COMPOSE_PROVIDER: podman-compose
+          PODMAN_SMOKE_IMAGE: ${{ env.SMOKE_IMAGE }}
           PODMAN_SMOKE_REQUIRED: "1"
+          PODMAN_SMOKE_SKIP_BUILD: "1"
 
       - name: Authenticate to GHCR after all test gates
         env:

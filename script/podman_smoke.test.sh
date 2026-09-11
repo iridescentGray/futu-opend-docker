@@ -28,15 +28,18 @@ command -v openssl >/dev/null 2>&1 || skip_or_fail 'openssl is unavailable'
 
 test_root=$(mktemp -d "${TMPDIR:-/tmp}/futu-podman-smoke.XXXXXX")
 project_name=futu-podman-smoke-$$
-image_name=localhost/futu-opend-podman-smoke:$$
+image_name=${PODMAN_SMOKE_IMAGE:-localhost/futu-opend-podman-smoke:$$}
 env_file=$test_root/podman.env
 key_file=$test_root/futu.pem
+image_built=false
 
 cleanup() {
   LOCAL_RSA_FILE_PATH="$key_file" podman compose \
     --project-name "$project_name" --env-file "$env_file" \
     -f "$root_dir/release/compose.yaml" down -v >/dev/null 2>&1 || true
-  podman image rm "$image_name" >/dev/null 2>&1 || true
+  if [[ $image_built == true ]]; then
+    podman image rm "$image_name" >/dev/null 2>&1 || true
+  fi
   rm -rf -- "$test_root"
 }
 trap cleanup EXIT HUP INT TERM
@@ -56,11 +59,23 @@ printf '%s\n' \
   "FUTU_OPEND_SHA256=$artifact_sha" >"$env_file"
 chmod 0600 "$env_file"
 
-podman build --platform linux/amd64 --target runtime \
-  --build-arg "FUTU_OPEND_VER=$version" \
-  --build-arg "FUTU_OPEND_SHA256=$artifact_sha" \
-  --tag "$image_name" "$root_dir"
-printf 'PASSED: podman build produced the locked Linux/amd64 runtime image\n'
+if [[ ${PODMAN_SMOKE_SKIP_BUILD:-0} == 1 ]]; then
+  podman image inspect "$image_name" >/dev/null 2>&1 ||
+    skip_or_fail 'PODMAN_SMOKE_SKIP_BUILD=1 image does not exist'
+  printf 'PASSED: Podman loaded the exact image already accepted by Layer 2\n'
+else
+  image_built=true
+  podman build --platform linux/amd64 --target runtime \
+    --build-arg "FUTU_OPEND_VER=$version" \
+    --build-arg "FUTU_OPEND_SHA256=$artifact_sha" \
+    --tag "$image_name" "$root_dir"
+  printf 'PASSED: podman build produced the locked Linux/amd64 runtime image\n'
+fi
+
+[[ $(podman image inspect --format '{{.Architecture}}' "$image_name") == amd64 ]] ||
+  skip_or_fail 'the Podman smoke image architecture is not amd64'
+[[ $(podman image inspect --format '{{.Config.User}}' "$image_name") == 10001:10001 ]] ||
+  skip_or_fail 'the Podman smoke image runtime user is not 10001:10001'
 
 LOCAL_RSA_FILE_PATH="$key_file" validate_compose_config podman compose \
   --project-name "$project_name-source" --env-file "$env_file" \
