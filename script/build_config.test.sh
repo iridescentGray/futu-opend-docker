@@ -24,6 +24,8 @@ assert artifact['fileName'] == expected_name
 assert artifact['url'] == f'https://softwaredownload.futunn.com/{expected_name}'
 assert artifact['platform'] == 'linux/amd64'
 assert artifact['sha256'] is None or re.fullmatch(r'[0-9a-f]{64}', artifact['sha256'])
+if artifact['sha256'] is not None:
+    assert artifact['integrityStatus'] == 'tofu-reviewed'
 print('ok 1 - version metadata binds stable version to one exact amd64 artifact')
 
 for stage in ('build', 'runtime'):

@@ -70,6 +70,7 @@ assert release_layer1_at < release_layer2_at < release_login_at < release_push_a
 assert release_push_at < release_bundle_at < release_create_at
 assert 'IMAGE_REF' in release and 'sha256:' in release
 assert "tr '[:upper:]' '[:lower:]'" in release
+assert '--notes-file "release-notes/${GITHUB_REF_NAME}.md"' in release
 print('ok 5 - tagged releases publish one tested image and a digest-pinned source-free bundle')
 
 assert 'AUTO_MERGE_TOKEN' not in version

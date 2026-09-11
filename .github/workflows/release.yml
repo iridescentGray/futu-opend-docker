@@ -85,4 +85,4 @@ jobs:
             "dist/futu-opend-${RELEASE_VERSION}-linux-amd64.tar.gz.sha256" \
             --verify-tag \
             --title "Futu OpenD ${RELEASE_VERSION}" \
-            --generate-notes
+            --notes-file "release-notes/${GITHUB_REF_NAME}.md"

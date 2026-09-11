@@ -68,9 +68,11 @@ results are wrapper tests only.
 
 ## Layer 2 — isolated no-credential container smoke
 
-The exact stable archive SHA-256 must first be reviewed and recorded as described
-in `README.md`. The current `null` lock intentionally makes this test fail its
-preflight rather than build unreviewed bytes.
+The exact stable archive SHA-256 is recorded in `opend_version.json` as a
+TOFU-reviewed lock calculated from the fixed official HTTPS origin. It provides
+byte consistency, not publisher-signature authentication. A version bump clears
+the lock and makes this test fail its preflight until the new artifact is
+reviewed.
 
 On a Linux/amd64 Docker host:
 

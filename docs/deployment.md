@@ -52,11 +52,10 @@ Ubuntu 18.04，因此运行阶段暂时保留固定 digest 的 Ubuntu 18.04 amd6
 版本前，必须在 Linux/amd64 上检查二进制依赖并验证无凭据启动行为；构建
 成功本身不能证明兼容。
 
-`opend_version.json` 是仓库构建版本信息的来源。当前 OpenD 产物 SHA-256
-特意保持为 `null`：尚未找到发布方提供的签名或校验值，并且审查环境无法
-下载该产物。首次本地初始化会自动完成官方 HTTPS 下载和 `.env` 写入；执行
-初始化命令即表示接受该 TOFU 行为。仓库 CI 和发布仍会失败关闭，直到维护者
-把相同的已审查摘要记录进 `opend_version.json`。不要从未经审查的第三方
+`opend_version.json` 是仓库构建版本信息的来源。当前 OpenD 产物通过固定
+富途官方 HTTPS 地址的临时下载、归档结构检查和本地 SHA-256 计算完成 TOFU
+锁定。该摘要只能证明后续下载字节一致，不是发布方提供的签名或独立来源认证。
+版本升级会主动清空旧锁，维护者必须重新审查新产物；不要从未经审查的第三方
 复制摘要。
 
 一体化初始化命令会自动调用以下底层命令，下载临时副本并打印候选摘要：
@@ -71,8 +70,9 @@ bash script/download_futu_opend.sh --report-tofu \
 下载后自行计算摘要属于首次使用信任（TOFU），不是发布方身份认证。后续匹配
 只能证明字节与这次信任决定一致。
 
-仓库维护者仍应把相同值写入 `stableArtifact.sha256`，并将
-`integrityStatus` 改为 `tofu-reviewed`，才能启用 Layer 2 和发布 CI。
+已审查值同时记录在 `stableArtifact.sha256` 和 `.env.example`，且
+`integrityStatus` 为 `tofu-reviewed`，因此 Layer 2 和受信任发布 CI 可以
+执行。首次本地初始化仍会对用户自己的下载进行同样的一致性检查。
 
 提交完整性锁后可明确构建：
 

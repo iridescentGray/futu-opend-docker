@@ -1,7 +1,8 @@
 # Futu OpenD Docker
 
-[![Docker Pulls](https://img.shields.io/github/package-json/v/manhinhang/futu-opend-docker)](https://github.com/manhinhang/futu-opend-docker/packages)
-[![GitHub](https://img.shields.io/github/license/manhinhang/futu-opend-docker)](https://github.com/manhinhang/futu-opend-docker/blob/main/LICENSE)
+[![Release](https://img.shields.io/github/v/release/iridescentGray/futu-opend-docker)](https://github.com/iridescentGray/futu-opend-docker/releases)
+[![GHCR](https://img.shields.io/badge/GHCR-futu--opend--docker-blue)](https://github.com/iridescentGray/futu-opend-docker/pkgs/container/futu-opend-docker)
+[![License](https://img.shields.io/github/license/iridescentGray/futu-opend-docker)](LICENSE)
 
 面向个人长期使用的 FutuOpenD Docker Compose 项目，主要支持
 Linux/amd64、OpenD 10.10.7008 和单实例运行。
@@ -42,6 +43,16 @@ chmod 0600 .env
 ./futu-opend start
 ```
 
+`init` 与 `start` 不需要在首次登录时连续执行：`init` 登录成功后的前台 OpenD
+已经是 API 服务；只有该会话结束或主机重启后才运行 `start`。常用运维命令：
+
+```bash
+./futu-opend status
+./futu-opend logs
+./futu-opend stop
+./futu-opend reauth
+```
+
 发行包的 Compose 直接拉取由版本和 registry digest 固定的 GHCR 镜像，不包含
 Dockerfile、构建上下文或测试源码。首次登录仍由用户在私有终端完成；当前前台
 OpenD 进程登录成功后立即提供 API 服务。
@@ -65,12 +76,12 @@ FUTU_ACCOUNT_AREA_CODE=+86
 # 仅供本项目登录包装器使用；留空则登录时手工输入
 FUTU_LOGIN_PASSWORD='你的密码'
 FUTU_OPEND_VER=10.10.7008
-FUTU_OPEND_SHA256=
+FUTU_OPEND_SHA256=dbb8e5e73faacaad093d7bac6c3bb60efd6f29a28aa7541c494c015aaec13d8d
 ```
 
-首次启动时，如果 SHA-256 为空，脚本会从固定的富途官方 HTTPS 地址临时
-下载并检查安装包，然后自动将候选摘要写入本地 `.env`。这是首次使用信任
-（TOFU），不是官方签名验证或独立的来源真实性证明。
+该 SHA-256 来自固定富途官方 HTTPS 地址的临时下载和归档检查，是经过审查的
+首次使用信任（TOFU）一致性锁，不是官方签名验证或独立的来源真实性证明。
+版本升级会清空旧锁并要求重新审查。
 
 `FUTU_LOGIN_PASSWORD` 是本项目包装层变量，不是 OpenD 原生配置；它不会写入
 XML 或传入容器。不要改用已废弃的 `FUTU_ACCOUNT_PWD` 或

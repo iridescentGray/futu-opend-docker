@@ -86,10 +86,10 @@ See `docs/E2E.md`.
    smoke, and user-only encrypted read-only SDK acceptance. Only the last layer
    can establish `qot_logined`; it is never enabled by agents or public CI.
 
-The current artifact lock is deliberately empty because no publisher checksum
-was found and the package was unavailable from this environment. Build/CI must
-fail until a human follows README's explicit TOFU review and records the digest;
-never manufacture or silently refresh it during a build.
+The OpenD artifact is locked to a TOFU-reviewed SHA-256 calculated from a
+validated temporary download at the fixed official HTTPS origin. It is not a
+publisher checksum or signature. A version bump intentionally clears the lock;
+never reuse or silently refresh a digest for another artifact.
 
 Do not pass `-no_monitor` until the actual Linux/amd64 10.10.7008 binary's
 parent/monitor behavior has been observed in isolation. CI checks that

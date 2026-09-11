@@ -144,7 +144,7 @@ Docker containerization for Futu OpenD — a trading API gateway for Futu Securi
 | `.env.example` default      | 10.10.7008                             | `.env.example` (mirrors stable on bumps) <!-- futu-opend-version --> |
 | Runtime base                | pinned `ubuntu:18.04` amd64            | `opend_version.json` + `Dockerfile`; compatibility baseline, EOL     |
 | Build base                  | pinned `ubuntu:22.04` amd64            | `opend_version.json` + `Dockerfile`                                  |
-| Artifact integrity          | SHA-256 currently unlocked (`null`)    | Build fails until reviewed TOFU lock is recorded                     |
+| Artifact integrity          | TOFU-reviewed SHA-256                  | Fixed official-HTTPS archive; not publisher signature authentication |
 | API port                    | 11111                                  | env `FUTU_OPEND_PORT`                                                |
 | Telnet port (optional)      | disabled                               | set both Telnet IP and port explicitly to opt in                      |
 | WebSocket port (optional)   | disabled                               | env `FUTU_OPEND_WEBSOCKET_PORT`; not host-published by default        |

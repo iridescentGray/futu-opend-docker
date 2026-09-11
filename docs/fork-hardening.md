@@ -390,6 +390,8 @@ configuration file. This conflict is recorded rather than silently resolved.
   no automatic retry, fake-secret redaction tests and synchronized docs.
 - [x] Phase 11 — source-free release bundle, digest-pinned image-only Compose,
   operator launcher, checksum, and immutable tag-triggered release workflow.
+- [x] Phase 12 — first-release artifact lock, user-facing README, and explicit
+  `v10.10.7008-r1` release notes and tag policy.
 
 The phases deliberately keep login, security configuration, build hardening,
 and test/CI work separate. Target-platform real login, SDK readiness, image
@@ -870,3 +872,30 @@ changed locally.
 | `git diff --check` | PASSED | No whitespace errors at the phase checkpoint. |
 | Real tagged GitHub Release and GHCR digest | NOT RUN | Requires an approved artifact lock and an explicit remote tag push; neither was performed. |
 | Real login and remembered startup from the bundle | NOT RUN | User-only Linux/amd64 acceptance; no credentials, key, session, or verification code were accessed. |
+
+## Phase 12 — first release preparation
+
+The exact OpenD 10.10.7008 Ubuntu 18.04 archive was downloaded temporarily
+from the fixed official HTTPS origin through the hardened downloader. Its
+archive structure passed validation and the resulting SHA-256 was recorded as
+a TOFU-reviewed consistency lock in `opend_version.json` and `.env.example`.
+This is not a publisher-provided checksum or signature and is described as such
+in the README and release notes.
+
+The README now treats the source-free Release asset as the normal user path,
+explains that `init` is already the active foreground API service after login,
+and lists the routine management commands. The explicit
+`v10.10.7008-r1` notes document installation, security defaults, supported
+platform, lifecycle, test boundary, Ubuntu 18.04 compatibility limitation, and
+non-affiliation. The tag workflow consumes this checked-in notes file instead
+of generating generic notes.
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| Official-HTTPS temporary download and archive validation | PASSED | Candidate SHA-256 was calculated after the fixed-origin download and path validation; no archive was retained. |
+| `bash script/layer1.test.sh` | PASSED | Offline wrapper/config/release/CI suites passed without credentials or a Docker daemon. |
+| Workflow YAML and JSON parsing | PASSED | All workflow YAML plus `opend_version.json` and `package.json` parsed successfully. |
+| `git diff --check` | PASSED | No whitespace errors before the release commit. |
+| Full npm Layer 1 | NOT RUN | Node and npm are unavailable on this host; the release workflow installs dependencies and reruns it. |
+| Local Layer 2 image smoke | NOT RUN | Docker daemon is unavailable; the release workflow must pass it before registry authentication. |
+| Real login / SDK readiness | NOT RUN | Remains user-only and is not a release-workflow claim. |
