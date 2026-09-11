@@ -71,11 +71,13 @@ render "$ROOT_DIR/docker-compose.host.yaml" "$BASE_ENV" "$HOST_JSON"
 render "$ROOT_DIR/docker-compose.yaml" "$EMPTY_ENV" "$EMPTY_JSON"
 render "$ROOT_DIR/docker-compose.yaml" "$CUSTOM_ENV" "$CUSTOM_JSON"
 
-python3 - "$BRIDGE_JSON" "$HOST_JSON" "$EMPTY_JSON" "$CUSTOM_JSON" <<'PY'
+python3 - "$BRIDGE_JSON" "$HOST_JSON" "$EMPTY_JSON" "$CUSTOM_JSON" \
+  "$ROOT_DIR/docker-compose.yaml" <<'PY'
 import json
 import sys
 
-bridge, host, empty, custom = [json.load(open(path, encoding='utf-8')) for path in sys.argv[1:]]
+bridge, host, empty, custom = [json.load(open(path, encoding='utf-8')) for path in sys.argv[1:5]]
+compose_source = open(sys.argv[5], encoding='utf-8').read()
 password_canary = 'FAKE_COMPOSE_PASSWORD_MUST_NOT_LEAK'
 
 for model in (bridge, host, empty, custom):
@@ -140,7 +142,7 @@ assert key_init['build']['args']['FUTU_OPEND_SHA256'] == 'a' * 64
 source_mount = next(m for m in key_init['volumes'] if m['target'] == '/source/futu.pem')
 assert source_mount['type'] == 'bind'
 assert source_mount['read_only'] is True
-assert source_mount.get('bind', {}).get('create_host_path') is False
+assert 'create_host_path: false' in compose_source
 runtime_key = next(m for m in bridge_service['volumes'] if m['target'] == '/.futu')
 assert runtime_key['read_only'] is True
 
