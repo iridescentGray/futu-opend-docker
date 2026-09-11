@@ -147,10 +147,13 @@ run_wrapper_exec() {
 }
 
 new_case remember_args
-run_wrapper \
+if ! run_wrapper \
   FUTU_LOGIN_MODE=remember \
   'FUTU_ACCOUNT_ID=acct + &[x]' \
-  FUTU_ACCOUNT_AREA_CODE=+86 >"$CASE_DIR/out" 2>"$CASE_DIR/err"
+  FUTU_ACCOUNT_AREA_CODE=+86 >"$CASE_DIR/out" 2>"$CASE_DIR/err"; then
+  sed 's/^/wrapper stderr: /' "$CASE_DIR/err" >&2
+  fail 'baseline remember-mode wrapper invocation failed'
+fi
 assert_contains "$ARGS_FILE" '-login_account=acct + &[x]'
 assert_contains "$ARGS_FILE" '-area_code=+86'
 assert_contains "$ARGS_FILE" '-login_by_remember=1'
