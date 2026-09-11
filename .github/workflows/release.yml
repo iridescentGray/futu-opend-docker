@@ -48,8 +48,11 @@ jobs:
           echo "RELEASE_VERSION=$RELEASE_VERSION" >>"$GITHUB_ENV"
           echo "SMOKE_IMAGE=${IMAGE_NAME}:ubuntu-${RELEASE_VERSION}" >>"$GITHUB_ENV"
 
-      - name: Run Layer 1
-        run: npm run test:layer1
+      - name: Run Layer 1 JavaScript unit tests
+        run: npm run test:unit
+
+      - name: Run Layer 1 shell and configuration tests
+        run: npm run test:offline
 
       - name: Report Layer 3 default status
         run: npm run test:live

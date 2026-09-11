@@ -33,8 +33,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes expect
 
-      - name: Run Layer 1
-        run: npm run test:layer1
+      - name: Run Layer 1 JavaScript unit tests
+        run: npm run test:unit
+
+      - name: Run Layer 1 shell and configuration tests
+        run: npm run test:offline
 
       - name: Report Layer 3 default status
         run: npm run test:live
