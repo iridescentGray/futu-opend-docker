@@ -109,9 +109,16 @@ run_timeout 30 docker run --rm --network none --entrypoint /bin/sh "$image_name"
   test "$(stat -c %a /etc/futu-opend/FutuOpenD.xml)" = 644
 ' || fail 'required image files, modes, or non-root identity are invalid'
 
-if ! run_timeout 30 docker run --rm --network none \
+set +e
+run_timeout 30 docker run --rm --network none \
   --entrypoint /opt/futu-opend/FutuOpenD "$image_name" -help \
-  >"$test_root/help.out" 2>"$test_root/help.err"; then
+  >"$test_root/help.out" 2>"$test_root/help.err"
+help_status=$?
+set -e
+if ((help_status != 0)); then
+  printf 'FutuOpenD -help exit status: %s\n' "$help_status" >&2
+  sed -n '1,80{s/^/FutuOpenD stdout: /;p;}' "$test_root/help.out" >&2
+  sed -n '1,80{s/^/FutuOpenD stderr: /;p;}' "$test_root/help.err" >&2
   fail 'FutuOpenD -help failed or timed out'
 fi
 for parameter in login_account login_by_remember area_code cfg_file; do
