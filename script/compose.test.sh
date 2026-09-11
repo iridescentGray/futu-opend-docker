@@ -143,8 +143,11 @@ source_mount = next(m for m in key_init['volumes'] if m['target'] == '/source/fu
 assert source_mount['type'] == 'bind'
 assert source_mount['read_only'] is True
 assert 'create_host_path: false' in compose_source
-assert source_mount['bind']['create_host_path'] is False
-assert source_mount['bind']['selinux'] == 'Z'
+assert 'selinux: Z' in compose_source
+# Older Compose v2 releases omit false/default bind options from JSON output.
+rendered_bind = source_mount.get('bind', {})
+assert rendered_bind.get('create_host_path') in (None, False)
+assert rendered_bind.get('selinux') in (None, 'Z')
 runtime_key = next(m for m in bridge_service['volumes'] if m['target'] == '/.futu')
 assert runtime_key['read_only'] is True
 

@@ -185,14 +185,14 @@ podman compose --env-file .env -f docker-compose.yaml \
 
 ## 容器运行环境支持
 
-| Runtime | Support |
-| --- | --- |
-| Docker Engine + `docker compose` | supported |
-| Podman + `podman compose`（Linux/amd64） | supported |
-| Rootless Podman（Linux/amd64） | supported |
-| Rootful Podman | expected to work but not preferred |
-| Docker-compatible alias | not required |
-| macOS Apple Silicon + Podman | not tested; release bundle requires Docker Desktop |
+| Runtime                                  | Support                                            |
+| ---------------------------------------- | -------------------------------------------------- |
+| Docker Engine + `docker compose`         | supported                                          |
+| Podman + `podman compose`（Linux/amd64） | supported                                          |
+| Rootless Podman（Linux/amd64）           | supported                                          |
+| Rootful Podman                           | expected to work but not preferred                 |
+| Docker-compatible alias                  | not required                                       |
+| macOS Apple Silicon + Podman             | not tested; release bundle requires Docker Desktop |
 
 ## 免责声明
 

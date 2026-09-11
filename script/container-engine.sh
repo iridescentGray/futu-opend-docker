@@ -42,6 +42,8 @@ resolve_container_engine() {
     ;;
   esac
 
+  # This array is consumed by scripts that source this helper.
+  # shellcheck disable=SC2034
   compose_cmd=("$container_engine" compose)
 }
 

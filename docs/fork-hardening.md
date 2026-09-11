@@ -938,18 +938,18 @@ security defaults. The repo-local operator skill was narrowly updated so future
 installation requests select the matching host archive without weakening its
 credential or real-login boundaries.
 
-| Check | Result | Notes |
-| --- | --- | --- |
-| `bash script/release_bundle.test.sh` | PASSED | 5 checks cover both archive/checksum pairs, source-free contents, embedded host metadata, mismatch rejection before Docker, Docker/secret/volume behavior, and the LibreSSL PKCS#1 fallback. |
-| `bash script/layer1.test.sh` | PASSED | 91 offline shell/config assertions passed with fake credentials and isolated temporary resources; no real login or production state was accessed. |
-| Apple Silicon Docker preflight | PASSED | On `Darwin/arm64`, Docker Desktop reported `linux/aarch64` and Compose v2. |
-| Generated macOS bundle `status` | PASSED | The extracted bundle passed its real host/engine checks and rendered a read-only Compose status without pulling an image or starting a container. |
-| `bash script/container_smoke.test.sh` | PASSED | On the Apple Silicon host, Docker Desktop built and ran the locked Linux/amd64 image under emulation, validating architecture, non-root identity, files, help arguments, fake wrapper configuration, and controlled PID-1 termination. |
-| Workflow YAML and skill frontmatter parse | PASSED | Ruby parsed all workflow YAML and the skill's required frontmatter fields. |
-| Skill Creator `quick_validate.py` | NOT RUN | The available Python lacks the validator's `yaml` module; the direct YAML parse and project behavior tests above were used without installing a new dependency. |
-| Full `npm run test:layer1` | NOT RUN | `npm` is not installed on this host; its shell/config subset passed separately. |
-| Real login, remembered session, and encrypted SDK readiness | NOT RUN | These remain user-only acceptance steps and were not inferred from the successful emulated smoke. |
-| Tagged `v10.10.7008-r2` GitHub Release | FAILED | The immutable tag was pushed, but Ubuntu Layer 1 exposed a BSD-only `stat -f` assertion in the new release test. The workflow stopped before registry authentication, image push, bundle creation, or Release publication. |
+| Check                                                       | Result  | Notes                                                                                                                                                                                                                                  |
+| ----------------------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bash script/release_bundle.test.sh`                        | PASSED  | 5 checks cover both archive/checksum pairs, source-free contents, embedded host metadata, mismatch rejection before Docker, Docker/secret/volume behavior, and the LibreSSL PKCS#1 fallback.                                           |
+| `bash script/layer1.test.sh`                                | PASSED  | 91 offline shell/config assertions passed with fake credentials and isolated temporary resources; no real login or production state was accessed.                                                                                      |
+| Apple Silicon Docker preflight                              | PASSED  | On `Darwin/arm64`, Docker Desktop reported `linux/aarch64` and Compose v2.                                                                                                                                                             |
+| Generated macOS bundle `status`                             | PASSED  | The extracted bundle passed its real host/engine checks and rendered a read-only Compose status without pulling an image or starting a container.                                                                                      |
+| `bash script/container_smoke.test.sh`                       | PASSED  | On the Apple Silicon host, Docker Desktop built and ran the locked Linux/amd64 image under emulation, validating architecture, non-root identity, files, help arguments, fake wrapper configuration, and controlled PID-1 termination. |
+| Workflow YAML and skill frontmatter parse                   | PASSED  | Ruby parsed all workflow YAML and the skill's required frontmatter fields.                                                                                                                                                             |
+| Skill Creator `quick_validate.py`                           | NOT RUN | The available Python lacks the validator's `yaml` module; the direct YAML parse and project behavior tests above were used without installing a new dependency.                                                                        |
+| Full `npm run test:layer1`                                  | NOT RUN | `npm` is not installed on this host; its shell/config subset passed separately.                                                                                                                                                        |
+| Real login, remembered session, and encrypted SDK readiness | NOT RUN | These remain user-only acceptance steps and were not inferred from the successful emulated smoke.                                                                                                                                      |
+| Tagged `v10.10.7008-r2` GitHub Release                      | FAILED  | The immutable tag was pushed, but Ubuntu Layer 1 exposed a BSD-only `stat -f` assertion in the new release test. The workflow stopped before registry authentication, image push, bundle creation, or Release publication.             |
 
 ## Phase 14 — portable release-test correction and r3 preparation
 
@@ -964,12 +964,12 @@ The public r2 tag was left unchanged. User download examples and release notes
 advance to `v10.10.7008-r3`; the next tag reruns every pre-publication gate and
 publishes nothing unless they all pass.
 
-| Check | Result | Notes |
-| --- | --- | --- |
-| macOS `bash script/release_bundle.test.sh` | PASSED | All 5 dual-host bundle checks passed on Darwin/arm64. |
-| Ubuntu/amd64 release test reproduction | PASSED | The same 5 checks passed in a read-only-mounted `ubuntu:22.04` container with no network, credentials, or production resources. |
-| r2 publication boundary | PASSED | Public workflow evidence shows Layer 2, registry authentication, image push, digest resolution, bundle build, and GitHub Release creation were all skipped after Layer 1 failed. |
-| Tagged `v10.10.7008-r3` GitHub Release | NOT RUN | Requires the corrected commit and new immutable tag to be pushed. |
+| Check                                      | Result  | Notes                                                                                                                                                                            |
+| ------------------------------------------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| macOS `bash script/release_bundle.test.sh` | PASSED  | All 5 dual-host bundle checks passed on Darwin/arm64.                                                                                                                            |
+| Ubuntu/amd64 release test reproduction     | PASSED  | The same 5 checks passed in a read-only-mounted `ubuntu:22.04` container with no network, credentials, or production resources.                                                  |
+| r2 publication boundary                    | PASSED  | Public workflow evidence shows Layer 2, registry authentication, image push, digest resolution, bundle build, and GitHub Release creation were all skipped after Layer 1 failed. |
+| Tagged `v10.10.7008-r3` GitHub Release     | NOT RUN | Requires the corrected commit and new immutable tag to be pushed.                                                                                                                |
 
 ## Phase 15 — Docker and rootless Podman Compose compatibility
 
@@ -1013,18 +1013,21 @@ Phase baseline commit: `50848067979e38e2ba9c520f184277c5002fbc68`.
 
 ### Checks
 
-| Check | Result | Notes |
-| --- | --- | --- |
-| `bash script/layer1.test.sh` | PASSED | 103 offline assertions, including all eight engine-selection cases, source Podman initialization, all six release commands, Compose SELinux rendering, release contents, and strict CI gate outcomes. |
-| Docker Compose v5.4 model rendering | PASSED | Bridge/host source models accepted `create_host_path: false` plus `bind.selinux: Z`; existing port, network, restart, health, dependency, and log fields remain present. |
-| `bash script/container_smoke.test.sh` | PASSED | Docker Desktop built and ran the locked Linux/amd64 image under emulation without credentials; Dockerfile change remained compatible. |
-| Workflow YAML, package/version JSON, Bash syntax, `git diff --check` | PASSED | All changed workflow and script syntax parsed; no whitespace errors. |
-| Operator-skill frontmatter parse | PASSED | Ruby YAML parsed the updated frontmatter. |
-| Skill Creator `quick_validate.py` | NOT RUN | The available Python environment lacks its `yaml` module; no dependency was installed. |
-| `npm run test:offline` / JavaScript unit tests | NOT RUN | Node/npm are not installed on this host; the underlying complete shell/config layer passed directly. |
-| Local `bash script/podman_smoke.test.sh` | SKIPPED | Podman is not installed on this macOS host. The required Linux rootless run exists in PR CI but has not run locally. |
-| SELinux enforcing-host relabel | NOT RUN | The Compose model uses the standard private `Z` option; this host is macOS and cannot prove an enforcing Linux label transition. |
-| Real OpenD login, remembered session, and SDK readiness | NOT RUN | These remain user-only acceptance and were not inferred from container tests. |
+| Check                                                                | Result  | Notes                                                                                                                                                                                                 |
+| -------------------------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bash script/layer1.test.sh`                                         | PASSED  | 103 offline assertions, including all eight engine-selection cases, source Podman initialization, all six release commands, Compose SELinux rendering, release contents, and strict CI gate outcomes. |
+| Docker Compose v5.4 model rendering                                  | PASSED  | Bridge/host source models accepted `create_host_path: false` plus `bind.selinux: Z`; existing port, network, restart, health, dependency, and log fields remain present.                              |
+| `bash script/container_smoke.test.sh`                                | PASSED  | Docker Desktop built and ran the locked Linux/amd64 image under emulation without credentials; Dockerfile change remained compatible.                                                                 |
+| Workflow YAML, package/version JSON, Bash syntax, `git diff --check` | PASSED  | All changed workflow and script syntax parsed; no whitespace errors.                                                                                                                                  |
+| Operator-skill frontmatter parse                                     | PASSED  | Ruby YAML parsed the updated frontmatter.                                                                                                                                                             |
+| Skill Creator `quick_validate.py`                                    | NOT RUN | The available Python environment lacks its `yaml` module; no dependency was installed.                                                                                                                |
+| `npm run test:offline` / JavaScript unit tests                       | NOT RUN | Node/npm are not installed on this host; the underlying complete shell/config layer passed directly.                                                                                                  |
+| Local `bash script/podman_smoke.test.sh`                             | SKIPPED | Podman is not installed on this macOS host. The required Linux rootless run exists in PR CI but has not run locally.                                                                                  |
+| SELinux enforcing-host relabel                                       | NOT RUN | The Compose model uses the standard private `Z` option; this host is macOS and cannot prove an enforcing Linux label transition.                                                                      |
+| Real OpenD login, remembered session, and SDK readiness              | NOT RUN | These remain user-only acceptance and were not inferred from container tests.                                                                                                                         |
+| First main-branch publish/lint run for Phase 15                      | FAILED  | Publish stopped in Layer 1 because Compose v2.33 omitted false/default bind options from JSON; lint found formatting and ShellCheck annotations. Neither reached publication.                         |
+| Compose v2.33 Linux reproduction and full pre-commit                 | PASSED  | Tests now tolerate omitted JSON defaults while still asserting source security fields; all pinned lint hooks passed.                                                                                  |
+| Tagged `v10.10.7008-r4` GitHub Release                               | NOT RUN | Must wait for the corrected main commit and all tag-workflow Docker/Podman gates.                                                                                                                     |
 
 ### Known boundary
 

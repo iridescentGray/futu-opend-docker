@@ -10,7 +10,7 @@ readonly env_file=${FUTU_ENV_FILE:-$bundle_dir/.env}
 readonly compose_file=$bundle_dir/compose.yaml
 readonly release_host_platform=@@FUTU_RELEASE_HOST_PLATFORM@@
 
-# shellcheck source=container-engine.sh
+# shellcheck source=script/container-engine.sh
 source "$bundle_dir/container-engine.sh"
 
 die() {
