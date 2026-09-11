@@ -184,11 +184,27 @@ if [[ -n "$websocket_port" ]]; then
   websocket_xml=$'\t\t<websocket_ip>'"$websocket_ip_xml"$'</websocket_ip>\n\t\t<websocket_port>'"$websocket_port_xml"'</websocket_port>'
 fi
 
-runtime_xml=${template//###FUTU_OPEND_IP###/$api_ip_xml}
-runtime_xml=${runtime_xml//###FUTU_OPEND_PORT###/$api_port_xml}
-runtime_xml=${runtime_xml//###FUTU_OPEND_TELNET_CONFIG###/$telnet_xml}
-runtime_xml=${runtime_xml//###FUTU_OPEND_RSA_CONFIG###/$rsa_xml}
-runtime_xml=${runtime_xml//###FUTU_OPEND_WEBSOCKET_CONFIG###/$websocket_xml}
+runtime_xml=$template
+replace_placeholder() {
+  local marker=$1
+  local replacement=$2
+  local prefix
+  local suffix
+
+  [[ $runtime_xml == *"$marker"* ]] ||
+    die 'the OpenD XML template is missing a required placeholder'
+  prefix=${runtime_xml%%"$marker"*}
+  suffix=${runtime_xml#*"$marker"}
+  runtime_xml=$prefix$replacement$suffix
+}
+
+# Do not use Bash pattern replacement here. On Bash 5 with patsub_replacement,
+# an ampersand in an XML entity such as &amp; expands back to the matched marker.
+replace_placeholder '###FUTU_OPEND_IP###' "$api_ip_xml"
+replace_placeholder '###FUTU_OPEND_PORT###' "$api_port_xml"
+replace_placeholder '###FUTU_OPEND_TELNET_CONFIG###' "$telnet_xml"
+replace_placeholder '###FUTU_OPEND_RSA_CONFIG###' "$rsa_xml"
+replace_placeholder '###FUTU_OPEND_WEBSOCKET_CONFIG###' "$websocket_xml"
 
 [[ "$runtime_xml" != *'###FUTU_OPEND_'* ]] ||
   die 'the OpenD XML template contains an unsupported placeholder'
