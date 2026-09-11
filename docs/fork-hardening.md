@@ -395,6 +395,9 @@ configuration file. This conflict is recorded rather than silently resolved.
 - [x] Phase 13 — macOS Apple Silicon host bundle, platform/engine preflight,
       LibreSSL key-generation compatibility, dual-host release assets, and
       native-host plus emulated Linux/amd64 smoke verification.
+- [x] Phase 14 — cross-platform release-test correction after the immutable r2
+      tag failed safely, with portable checksum/mode checks and Ubuntu/amd64
+      reproduction before preparing r3.
 
 The phases deliberately keep login, security configuration, build hardening,
 and test/CI work separate. Target-platform real login, SDK readiness, image
@@ -926,7 +929,7 @@ form, and then independently rejects anything without the unencrypted PKCS#1
 header. Existing keys are still never overwritten and host mode remains
 `0600`.
 
-The `v10.10.7008-r2` notes and user documentation describe both artifacts,
+The `v10.10.7008-r3` notes and user documentation describe both artifacts,
 checksums, requirements, login lifecycle, emulation boundary, and unchanged
 security defaults. The repo-local operator skill was narrowly updated so future
 installation requests select the matching host archive without weakening its
@@ -943,4 +946,24 @@ credential or real-login boundaries.
 | Skill Creator `quick_validate.py` | NOT RUN | The available Python lacks the validator's `yaml` module; the direct YAML parse and project behavior tests above were used without installing a new dependency. |
 | Full `npm run test:layer1` | NOT RUN | `npm` is not installed on this host; its shell/config subset passed separately. |
 | Real login, remembered session, and encrypted SDK readiness | NOT RUN | These remain user-only acceptance steps and were not inferred from the successful emulated smoke. |
-| Tagged `v10.10.7008-r2` GitHub Release | NOT RUN | No tag, push, image publication, or remote release mutation was performed; the trusted tag workflow is prepared to publish four assets. |
+| Tagged `v10.10.7008-r2` GitHub Release | FAILED | The immutable tag was pushed, but Ubuntu Layer 1 exposed a BSD-only `stat -f` assertion in the new release test. The workflow stopped before registry authentication, image push, bundle creation, or Release publication. |
+
+## Phase 14 — portable release-test correction and r3 preparation
+
+The failed r2 workflow was diagnosed as a test-only host portability error:
+`release_bundle.test.sh` unconditionally used BSD/macOS `stat -f` when checking
+the generated key mode. The production launcher already had a portable
+GNU/BSD mode helper. The release test now uses the same fallback pattern and
+also selects `sha256sum` or `shasum` according to the host. No runtime, login,
+network, key-volume, or image behavior was relaxed.
+
+The public r2 tag was left unchanged. User download examples and release notes
+advance to `v10.10.7008-r3`; the next tag reruns every pre-publication gate and
+publishes nothing unless they all pass.
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| macOS `bash script/release_bundle.test.sh` | PASSED | All 5 dual-host bundle checks passed on Darwin/arm64. |
+| Ubuntu/amd64 release test reproduction | PASSED | The same 5 checks passed in a read-only-mounted `ubuntu:22.04` container with no network, credentials, or production resources. |
+| r2 publication boundary | PASSED | Public workflow evidence shows Layer 2, registry authentication, image push, digest resolution, bundle build, and GitHub Release creation were all skipped after Layer 1 failed. |
+| Tagged `v10.10.7008-r3` GitHub Release | NOT RUN | Requires the corrected commit and new immutable tag to be pushed. |

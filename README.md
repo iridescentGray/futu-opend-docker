@@ -29,7 +29,7 @@ WebSocket 默认关闭。
 该发行包运行固定的 Linux/amd64 OpenD 镜像，不是原生 arm64 OpenD：
 
 ```bash
-RELEASE=10.10.7008-r2
+RELEASE=10.10.7008-r3
 curl -fLO "https://github.com/iridescentGray/futu-opend-docker/releases/download/v${RELEASE}/futu-opend-${RELEASE}-macos-apple-silicon.tar.gz"
 curl -fLO "https://github.com/iridescentGray/futu-opend-docker/releases/download/v${RELEASE}/futu-opend-${RELEASE}-macos-apple-silicon.tar.gz.sha256"
 shasum -a 256 -c "futu-opend-${RELEASE}-macos-apple-silicon.tar.gz.sha256"
@@ -40,7 +40,7 @@ cd "futu-opend-${RELEASE}-macos-apple-silicon"
 ### Linux/amd64
 
 ```bash
-RELEASE=10.10.7008-r2
+RELEASE=10.10.7008-r3
 curl -fLO "https://github.com/iridescentGray/futu-opend-docker/releases/download/v${RELEASE}/futu-opend-${RELEASE}-linux-amd64.tar.gz"
 curl -fLO "https://github.com/iridescentGray/futu-opend-docker/releases/download/v${RELEASE}/futu-opend-${RELEASE}-linux-amd64.tar.gz.sha256"
 sha256sum -c "futu-opend-${RELEASE}-linux-amd64.tar.gz.sha256"

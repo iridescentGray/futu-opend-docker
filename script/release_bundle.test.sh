@@ -8,6 +8,23 @@ test_root=$(mktemp -d "${TMPDIR:-/tmp}/futu-release-test.XXXXXX")
 cleanup() { rm -rf -- "$test_root"; }
 trap cleanup EXIT HUP INT TERM
 
+file_mode() {
+  if stat -c '%a' "$1" >/dev/null 2>&1; then
+    stat -c '%a' "$1"
+  else
+    stat -f '%Lp' "$1"
+  fi
+}
+
+verify_checksum() {
+  local directory=$1 checksum_file=$2
+  if command -v sha256sum >/dev/null 2>&1; then
+    (cd "$directory" && sha256sum -c "$checksum_file") >/dev/null
+  else
+    (cd "$directory" && shasum -a 256 -c "$checksum_file") >/dev/null
+  fi
+}
+
 readonly digest=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 readonly image=ghcr.io/example/futu-opend-docker@sha256:$digest
 for platform in linux-amd64 macos-apple-silicon; do
@@ -15,7 +32,7 @@ for platform in linux-amd64 macos-apple-silicon; do
     10.10.7008-r2 "$image" "$test_root/dist" "$platform" >/dev/null
   archive=$test_root/dist/futu-opend-10.10.7008-r2-$platform.tar.gz
   [[ -f $archive && -f $archive.sha256 ]]
-  (cd "$test_root/dist" && shasum -a 256 -c "${archive##*/}.sha256") >/dev/null
+  verify_checksum "$test_root/dist" "${archive##*/}.sha256"
   tar -C "$test_root" -xzf "$archive"
 done
 
@@ -121,7 +138,7 @@ rm -f -- "$mac_bundle/futu.pem"
 DOCKER_CAPTURE="$test_root/mac-docker.args" TEST_UNAME_S=Darwin TEST_UNAME_M=arm64 \
   PATH="$test_root/fake-bin:$PATH" bash "$mac_bundle/futu-opend" start >/dev/null
 grep -Fqx -- '-----BEGIN RSA PRIVATE KEY-----' "$mac_bundle/futu.pem"
-[[ $(stat -f '%Lp' "$mac_bundle/futu.pem") == 600 ]]
+[[ $(file_mode "$mac_bundle/futu.pem") == 600 ]]
 printf 'ok 3 - Apple Silicon launcher supports the macOS LibreSSL PKCS#1 fallback\n'
 
 if DOCKER_CAPTURE="$test_root/mismatch.args" TEST_UNAME_S=Linux TEST_UNAME_M=x86_64 \
