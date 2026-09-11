@@ -30,6 +30,11 @@ jobs:
       - name: Install locked test dependencies
         run: npm ci
 
+      - name: Install login-proxy test dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes expect
+
       - name: Validate immutable release tag
         run: |
           set -euo pipefail

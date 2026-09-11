@@ -38,6 +38,7 @@ assert 'secrets.' not in ci
 assert 'persist-credentials: false' in ci
 assert 'docker login' not in ci and 'docker push' not in ci
 assert 'upload-artifact' not in ci
+assert 'apt-get install --yes expect' in ci
 print('ok 2 - PR CI is read-only, credential-free, non-publishing, and artifact-free')
 
 assert 'LAYER1_RESULT:' in ci
@@ -55,6 +56,7 @@ login_at = publish.index('docker login')
 push_at = publish.index('docker push')
 assert layer1_at < layer2_at < login_at < push_at
 assert 'upload-artifact' not in publish
+assert 'apt-get install --yes expect' in publish
 print('ok 4 - publishing is trusted-event-only and occurs after both test layers')
 
 assert 'tags:' in release and 'v*-r*' in release
@@ -71,6 +73,7 @@ assert release_push_at < release_bundle_at < release_create_at
 assert 'IMAGE_REF' in release and 'sha256:' in release
 assert "tr '[:upper:]' '[:lower:]'" in release
 assert '--notes-file "release-notes/${GITHUB_REF_NAME}.md"' in release
+assert 'apt-get install --yes expect' in release
 print('ok 5 - tagged releases publish one tested image and a digest-pinned source-free bundle')
 
 assert 'AUTO_MERGE_TOKEN' not in version

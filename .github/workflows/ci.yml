@@ -51,6 +51,11 @@ jobs:
       - name: Install locked test dependencies
         run: npm ci
 
+      - name: Install login-proxy test dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes expect
+
       - name: Run Layer 1 unit and configuration tests
         run: npm run test:layer1
 
