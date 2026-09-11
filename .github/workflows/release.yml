@@ -80,8 +80,13 @@ jobs:
           fi
           echo "IMAGE_REF=$IMAGE_REF" >>"$GITHUB_ENV"
 
-      - name: Build the source-free operator bundle
-        run: bash script/build-release-bundle.sh "$RELEASE_VERSION" "$IMAGE_REF" dist
+      - name: Build the source-free operator bundles
+        run: |
+          set -euo pipefail
+          bash script/build-release-bundle.sh \
+            "$RELEASE_VERSION" "$IMAGE_REF" dist linux-amd64
+          bash script/build-release-bundle.sh \
+            "$RELEASE_VERSION" "$IMAGE_REF" dist macos-apple-silicon
 
       - name: Publish immutable GitHub Release assets
         env:
@@ -91,6 +96,8 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             "dist/futu-opend-${RELEASE_VERSION}-linux-amd64.tar.gz" \
             "dist/futu-opend-${RELEASE_VERSION}-linux-amd64.tar.gz.sha256" \
+            "dist/futu-opend-${RELEASE_VERSION}-macos-apple-silicon.tar.gz" \
+            "dist/futu-opend-${RELEASE_VERSION}-macos-apple-silicon.tar.gz.sha256" \
             --verify-tag \
             --title "Futu OpenD ${RELEASE_VERSION}" \
             --notes-file "release-notes/${GITHUB_REF_NAME}.md"

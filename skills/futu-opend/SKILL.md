@@ -1,16 +1,18 @@
 ---
 name: futu-opend
 description: |
-  Install and operate this fork's FutuOpenD 10.10.7008 Docker Compose service.
-  Use for setup, initialization, remembered startup, restart, reauthentication,
-  version changes, troubleshooting, or teardown requests.
+  Install and operate this fork's FutuOpenD 10.10.7008 Docker Compose service
+  on Linux/amd64 or an Apple Silicon Mac. Use for setup, initialization,
+  remembered startup, restart, reauthentication, version changes,
+  troubleshooting, or teardown requests.
 ---
 
 # FutuOpenD fork operator
 
-This fork targets one personal Linux/amd64 OpenD 10.10.7008 instance under
-Docker Compose. Read `AGENTS.md`, `README.md`, `docs/deployment.md`, and
-`docs/fork-hardening.md` before acting.
+This fork targets one personal Linux/amd64 OpenD 10.10.7008 container under
+Docker Compose. Source-free bundles support native Linux/amd64 hosts and Apple
+Silicon Macs through Docker Desktop amd64 emulation. Read `AGENTS.md`,
+`README.md`, `docs/deployment.md`, and `docs/fork-hardening.md` before acting.
 
 ## Non-negotiable login boundary
 
@@ -57,6 +59,12 @@ configures it, use `./futu-opend init` for the user-only first login or
 reauthentication and `./futu-opend start` for later remembered background
 startup. `stop`, `status`, and `logs` are also available. The bundle never
 builds locally and its stop command preserves both named volumes.
+
+Select the archive matching the host: `linux-amd64` for a Linux x86-64 host or
+`macos-apple-silicon` for an M-series Mac. The macOS archive is a host
+compatibility package, not a native arm64 OpenD image. It requires Docker
+Desktop in Linux-container mode with Compose v2; Apple Virtualization framework
+with Rosetta is recommended. Do not bypass the launcher's host or engine checks.
 
 Do not tell a release-bundle consumer to run the source-tree scripts below.
 Those remain the maintainer/developer path.

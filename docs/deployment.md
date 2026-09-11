@@ -6,15 +6,20 @@
 ## 支持范围
 
 - OpenD：`10.10.7008`。
-- 平台：Linux/amd64。
+- 容器平台：Linux/amd64。
+- 宿主平台：Linux/amd64；macOS Apple Silicon 通过 Docker Desktop x86 仿真。
 - 部署：单实例 Docker Compose。
 - 默认网络：普通 bridge，API 只发布到宿主机 `127.0.0.1`。
 - 兼容网络：独立的 `docker-compose.host.yaml`，不得与默认文件叠加。
-- 非主要目标：ARM、macOS、Kubernetes、多实例和业务功能扩展。
+- 非主要目标：原生 Linux/arm64、原生 macOS OpenD、Kubernetes、多实例和业务
+  功能扩展。
 
 ## 面向使用者的发行包
 
-正式使用路径是版本化、无源码的 Linux/amd64 发行包。包内只有
+正式使用路径是版本化、无源码的宿主平台发行包。当前同时生成
+`linux-amd64` 和 `macos-apple-silicon` 两个归档；两者都运行同一个经过测试、
+按 digest 固定的 Linux/amd64 容器镜像。macOS 包是 Apple Silicon 宿主兼容包，
+不是原生 arm64 OpenD 镜像。包内只有
 `compose.yaml`、`env.example`、`futu-opend` 管理命令、受限登录代理和简短
 说明；不包含 Dockerfile、构建上下文或测试。两个 Compose 服务使用同一个
 GHCR 镜像，并固定到发布后得到的 registry SHA-256 digest，因此用户机器不
@@ -39,9 +44,16 @@ chmod 0600 .env
 
 推送符合 `v<OpenD版本>-r<发行修订>` 的标签（例如
 `v10.10.7008-r1`）会触发发行工作流。工作流依次运行 Layer 1、对待发布镜像
-运行 Layer 2、推送不可变修订标签、解析 registry digest、生成发行包及其
-SHA-256 文件，最后创建同名 GitHub Release。实际发布仍要求
+运行 Layer 2、推送不可变修订标签、解析 registry digest、生成两种宿主发行包
+及其 SHA-256 文件，最后创建同名 GitHub Release。实际发布仍要求
 `opend_version.json` 中存在已审查的 OpenD 产物锁。
+
+macOS Apple Silicon 包的启动器在接触 Docker 前核对 `Darwin/arm64`，并检查
+Compose v2、可访问的 Docker engine 及 Linux container 模式。建议 Docker
+Desktop 使用 Apple Virtualization framework 并启用 Rosetta。Docker VMM 不
+支持 Rosetta 时仍可能通过较慢的仿真运行，但不作为性能保证。macOS 自带
+LibreSSL 不接受 OpenSSL 3 的 `-traditional` 参数，因此启动器会在该参数失败
+时使用 LibreSSL 默认输出，并继续要求最终密钥为未加密 PKCS#1 格式。
 
 ## 构建版本与产物锁定
 

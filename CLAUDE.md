@@ -6,8 +6,10 @@ boundaries apply here.
 
 ## Current target and login model
 
-The maintained target is one personal Linux/amd64 Docker Compose instance with
-OpenD 10.10.7008.
+The maintained container target is one personal Linux/amd64 Docker Compose
+instance with OpenD 10.10.7008. Source-free releases support Linux/amd64 hosts
+and Apple Silicon Macs through Docker Desktop amd64 emulation; the macOS bundle
+is not a native arm64 OpenD image.
 
 - `FUTU_LOGIN_MODE=interactive` is a wrapper mode for first initialization or
   reauthentication. Only the user runs it in a private attached terminal.

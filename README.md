@@ -4,8 +4,9 @@
 [![GHCR](https://img.shields.io/badge/GHCR-futu--opend--docker-blue)](https://github.com/iridescentGray/futu-opend-docker/pkgs/container/futu-opend-docker)
 [![License](https://img.shields.io/github/license/iridescentGray/futu-opend-docker)](LICENSE)
 
-面向个人长期使用的 FutuOpenD Docker Compose 项目，主要支持
-Linux/amd64、OpenD 10.10.7008 和单实例运行。
+面向个人长期使用的 FutuOpenD Docker Compose 项目，运行目标为
+Linux/amd64、OpenD 10.10.7008 和单实例。发行包支持 Linux/amd64 宿主机，
+以及通过 Docker Desktop x86 仿真运行的 macOS Apple Silicon（M1 或更新）。
 
 默认使用普通 bridge 网络，API 只发布到宿主机 `127.0.0.1:11111`；登录
 状态保存在命名卷中。首次登录可从本地 `.env` 自动填写账号、密码和“记住
@@ -21,15 +22,34 @@ WebSocket 默认关闭。
 
 普通使用者不需要克隆源码或在本机构建镜像。下载版本化发行包并校验：
 
+### macOS Apple Silicon
+
+需要 Apple Silicon Mac、Docker Desktop Linux container engine 和 Compose v2。
+建议在 Docker Desktop 中选择 Apple Virtualization framework 并启用 Rosetta。
+该发行包运行固定的 Linux/amd64 OpenD 镜像，不是原生 arm64 OpenD：
+
 ```bash
-curl -fLO https://github.com/iridescentGray/futu-opend-docker/releases/download/v10.10.7008-r1/futu-opend-10.10.7008-r1-linux-amd64.tar.gz
-curl -fLO https://github.com/iridescentGray/futu-opend-docker/releases/download/v10.10.7008-r1/futu-opend-10.10.7008-r1-linux-amd64.tar.gz.sha256
-sha256sum -c futu-opend-10.10.7008-r1-linux-amd64.tar.gz.sha256
-tar -xzf futu-opend-10.10.7008-r1-linux-amd64.tar.gz
-cd futu-opend-10.10.7008-r1-linux-amd64
+RELEASE=10.10.7008-r2
+curl -fLO "https://github.com/iridescentGray/futu-opend-docker/releases/download/v${RELEASE}/futu-opend-${RELEASE}-macos-apple-silicon.tar.gz"
+curl -fLO "https://github.com/iridescentGray/futu-opend-docker/releases/download/v${RELEASE}/futu-opend-${RELEASE}-macos-apple-silicon.tar.gz.sha256"
+shasum -a 256 -c "futu-opend-${RELEASE}-macos-apple-silicon.tar.gz.sha256"
+tar -xzf "futu-opend-${RELEASE}-macos-apple-silicon.tar.gz"
+cd "futu-opend-${RELEASE}-macos-apple-silicon"
 ```
 
-需要安装 Docker、Docker Compose、OpenSSL 和 `expect`。准备配置：
+### Linux/amd64
+
+```bash
+RELEASE=10.10.7008-r2
+curl -fLO "https://github.com/iridescentGray/futu-opend-docker/releases/download/v${RELEASE}/futu-opend-${RELEASE}-linux-amd64.tar.gz"
+curl -fLO "https://github.com/iridescentGray/futu-opend-docker/releases/download/v${RELEASE}/futu-opend-${RELEASE}-linux-amd64.tar.gz.sha256"
+sha256sum -c "futu-opend-${RELEASE}-linux-amd64.tar.gz.sha256"
+tar -xzf "futu-opend-${RELEASE}-linux-amd64.tar.gz"
+cd "futu-opend-${RELEASE}-linux-amd64"
+```
+
+两个宿主包都需要 Docker、Docker Compose v2、OpenSSL/LibreSSL 和 `expect`。
+准备配置：
 
 ```bash
 cp env.example .env
@@ -58,9 +78,10 @@ chmod 0600 .env
 ./futu-opend reauth
 ```
 
-发行包的 Compose 直接拉取由版本和 registry digest 固定的 GHCR 镜像，不包含
-Dockerfile、构建上下文或测试源码。首次登录仍由用户在私有终端完成；当前前台
-OpenD 进程登录成功后立即提供 API 服务。
+发行包的 Compose 直接拉取由版本和 registry digest 固定的 Linux/amd64 GHCR
+镜像，不包含 Dockerfile、构建上下文或测试源码。macOS 包通过 Docker Desktop
+仿真该镜像。首次登录仍由用户在私有终端完成；当前前台 OpenD 进程登录成功后
+立即提供 API 服务。
 
 ## 源码构建与调试
 

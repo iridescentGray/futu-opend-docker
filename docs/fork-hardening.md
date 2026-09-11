@@ -392,6 +392,9 @@ configuration file. This conflict is recorded rather than silently resolved.
       operator launcher, checksum, and immutable tag-triggered release workflow.
 - [x] Phase 12 — first-release artifact lock, user-facing README, and explicit
       `v10.10.7008-r1` release notes and tag policy.
+- [x] Phase 13 — macOS Apple Silicon host bundle, platform/engine preflight,
+      LibreSSL key-generation compatibility, dual-host release assets, and
+      native-host plus emulated Linux/amd64 smoke verification.
 
 The phases deliberately keep login, security configuration, build hardening,
 and test/CI work separate. Target-platform real login, SDK readiness, image
@@ -899,3 +902,45 @@ of generating generic notes.
 | Full npm Layer 1                                         | NOT RUN | Node and npm are unavailable on this host; the release workflow installs dependencies and reruns it.           |
 | Local Layer 2 image smoke                                | NOT RUN | Docker daemon is unavailable; the release workflow must pass it before registry authentication.                |
 | Real login / SDK readiness                               | NOT RUN | Remains user-only and is not a release-workflow claim.                                                         |
+
+## Phase 13 — macOS Apple Silicon host release
+
+The maintained OpenD image remains the exact Linux/amd64 target; no Linux/arm64
+or native macOS OpenD binary was introduced. The release builder now accepts an
+explicit host platform and produces separate `linux-amd64` and
+`macos-apple-silicon` source-free archives around the same registry-digest-pinned
+image. The tag workflow publishes both archives and both SHA-256 files in one
+GitHub Release.
+
+Generated launchers embed immutable host metadata. Before Docker or any named
+volume is accessed, the Linux package requires `Linux/x86_64` and the macOS
+package requires `Darwin/arm64`. Both require Compose v2, an accessible Docker
+engine, and Linux-container mode. The Apple Silicon documentation recommends
+Docker Desktop's Apple Virtualization framework with Rosetta while explicitly
+describing the package as amd64 emulation rather than a native arm64 build.
+
+The release launcher's key generation now handles macOS LibreSSL, which emits
+traditional PKCS#1 by default but rejects OpenSSL 3's `-traditional` option. It
+tries the explicit OpenSSL 3 form first, falls back to the portable `genrsa`
+form, and then independently rejects anything without the unencrypted PKCS#1
+header. Existing keys are still never overwritten and host mode remains
+`0600`.
+
+The `v10.10.7008-r2` notes and user documentation describe both artifacts,
+checksums, requirements, login lifecycle, emulation boundary, and unchanged
+security defaults. The repo-local operator skill was narrowly updated so future
+installation requests select the matching host archive without weakening its
+credential or real-login boundaries.
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| `bash script/release_bundle.test.sh` | PASSED | 5 checks cover both archive/checksum pairs, source-free contents, embedded host metadata, mismatch rejection before Docker, Docker/secret/volume behavior, and the LibreSSL PKCS#1 fallback. |
+| `bash script/layer1.test.sh` | PASSED | 91 offline shell/config assertions passed with fake credentials and isolated temporary resources; no real login or production state was accessed. |
+| Apple Silicon Docker preflight | PASSED | On `Darwin/arm64`, Docker Desktop reported `linux/aarch64` and Compose v2. |
+| Generated macOS bundle `status` | PASSED | The extracted bundle passed its real host/engine checks and rendered a read-only Compose status without pulling an image or starting a container. |
+| `bash script/container_smoke.test.sh` | PASSED | On the Apple Silicon host, Docker Desktop built and ran the locked Linux/amd64 image under emulation, validating architecture, non-root identity, files, help arguments, fake wrapper configuration, and controlled PID-1 termination. |
+| Workflow YAML and skill frontmatter parse | PASSED | Ruby parsed all workflow YAML and the skill's required frontmatter fields. |
+| Skill Creator `quick_validate.py` | NOT RUN | The available Python lacks the validator's `yaml` module; the direct YAML parse and project behavior tests above were used without installing a new dependency. |
+| Full `npm run test:layer1` | NOT RUN | `npm` is not installed on this host; its shell/config subset passed separately. |
+| Real login, remembered session, and encrypted SDK readiness | NOT RUN | These remain user-only acceptance steps and were not inferred from the successful emulated smoke. |
+| Tagged `v10.10.7008-r2` GitHub Release | NOT RUN | No tag, push, image publication, or remote release mutation was performed; the trusted tag workflow is prepared to publish four assets. |

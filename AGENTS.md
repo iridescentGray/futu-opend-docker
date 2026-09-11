@@ -7,7 +7,7 @@
 
 ## OVERVIEW
 
-Docker containerization for Futu OpenD — a trading API gateway for Futu Securities. The maintained build is one pinned Ubuntu-based Linux/amd64 target with automated version tracking and CI/CD to GHCR.
+Docker containerization for Futu OpenD — a trading API gateway for Futu Securities. The maintained build is one pinned Ubuntu-based Linux/amd64 target with automated version tracking and CI/CD to GHCR. Source-free releases support Linux/amd64 hosts and Apple Silicon Macs through Docker Desktop amd64 emulation.
 
 > **For agents operating in this repo**: when the user asks to install, set up, deploy, restart, re-login, send an SMS code to, bump the version of, or troubleshoot FutuOpenD, follow [`skills/futu-opend/SKILL.md`](skills/futu-opend/SKILL.md). The skill collapses the scattered procedures in this file, [README.md](README.md), [k8s/README.md](k8s/README.md), [CLAUDE.md](CLAUDE.md), and [docs/E2E.md](docs/E2E.md) into one runbook covering compose / `docker run` / Kubernetes targets.
 
@@ -40,7 +40,7 @@ Docker containerization for Futu OpenD — a trading API gateway for Futu Securi
 │       └── references/     # Per-target / per-task detail pulled in on demand
 ├── script/
 │   ├── start.sh            # Entrypoint — validates login mode, renders XML, execs OpenD
-│   ├── build-release-bundle.sh # Creates digest-pinned Linux/amd64 release archive + checksum
+│   ├── build-release-bundle.sh # Creates digest-pinned Linux and Apple Silicon host archives + checksums
 │   ├── release_bundle.test.sh # Offline release contents/launcher regression checks
 │   ├── start.test.sh       # Offline fake-OpenD wrapper tests
 │   ├── initialize-and-start.sh # Automatic local lock/key setup + port-published interactive service
@@ -76,7 +76,7 @@ Docker containerization for Futu OpenD — a trading API gateway for Futu Securi
 | Update config template                 | `FutuOpenD.xml`                                                        | Login-free template with explicit `###FUTU_OPEND_*###` placeholders                             |
 | Test startup wrapper                   | `script/start.test.sh`                                                 | Offline fake OpenD; never proves real login                                                     |
 | Initialize or reauthenticate           | `script/initialize-and-start.sh`                                       | User-only private TTY; current process serves API immediately after official login              |
-| Build consumer release bundle          | `script/build-release-bundle.sh`, `release/`                           | Produces source-free archive using a registry-digest-pinned GHCR image                          |
+| Build consumer release bundle          | `script/build-release-bundle.sh`, `release/`                           | Produces Linux/amd64 and macOS Apple Silicon host archives using one registry-digest-pinned image |
 | Operate from release bundle            | `release/futu-opend`, `release/compose.yaml`                           | `init` for first login; `start` for remembered background startup; no local image build         |
 | Modify interactive conveniences        | `script/interactive-login.exp`                                         | Wrapper-only env password is single-use; fake OpenD tests required; no Telnet                   |
 | Lock local first-trust artifact        | `script/lock-artifact.sh`                                              | Fixed official HTTPS temp download and atomic `.env` update; TOFU, not publisher authentication |
@@ -126,6 +126,7 @@ Docker containerization for Futu OpenD — a trading API gateway for Futu Securi
 
 - **XML templating**: `start.sh` XML-escapes values and substitutes explicit placeholders without `sed` or `eval`; runtime configuration is mode `0600` and contains no login fields.
 - **Pinned bases**: Ubuntu 22.04 amd64 fetch stage plus Ubuntu 18.04 amd64 compatibility runtime, both by manifest digest. Bionic is out of standard support and remains pending real binary migration validation.
+- **Apple Silicon host release**: The macOS package runs the same `linux/amd64` image through Docker Desktop emulation. It validates `Darwin/arm64` and Linux-container mode and never claims to be a native arm64 OpenD image.
 - **Liveness/readiness split**: health checks PID 1's `/proc` process name; readiness requires an SDK result and is never inferred from health.
 - **First login / reauthentication**: only the user runs `bash script/initialize-and-start.sh` in a private TTY. The helper records a missing local TOFU lock, prepares a missing key, and runs one port-published `interactive` container through the reviewed Expect proxy. The proxy fills account/`Y`, optionally submits the local wrapper password once, and accepts the user's verification code. After official login that same process serves the API; no second container is started.
 - **Login session persistence**: Named volume `futu-opend-data` at `/home/futu/.com.futunn.FutuOpenD`; the Dockerfile pre-creates the path with `futu:futu` ownership for first-mount inheritance.

@@ -1,6 +1,7 @@
-Futu OpenD release bundle (Linux/amd64)
+Futu OpenD release bundle (Linux/amd64 host)
 
-Requirements: Docker with Compose v2, OpenSSL, and Expect.
+Requirements: Linux/amd64, a running Docker Linux engine with Compose v2,
+OpenSSL, and Expect.
 
 1. cp env.example .env
 2. Edit .env and keep it private.

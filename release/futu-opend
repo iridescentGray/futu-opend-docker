@@ -8,6 +8,7 @@ bundle_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 readonly bundle_dir
 readonly env_file=${FUTU_ENV_FILE:-$bundle_dir/.env}
 readonly compose_file=$bundle_dir/compose.yaml
+readonly release_host_platform=@@FUTU_RELEASE_HOST_PLATFORM@@
 
 die() {
   printf 'ERROR: %s\n' "$1" >&2
@@ -40,7 +41,27 @@ unquote_env_value() {
 }
 
 require_base() {
+  local engine_os host_arch host_os
+  host_os=$(uname -s)
+  host_arch=$(uname -m)
+  case "$release_host_platform" in
+  linux-amd64)
+    [[ $host_os == Linux && $host_arch == x86_64 ]] ||
+      die 'this release requires a Linux/amd64 host; download the matching host package' 69
+    ;;
+  macos-apple-silicon)
+    [[ $host_os == Darwin && $host_arch == arm64 ]] ||
+      die 'this release requires an Apple Silicon Mac; download the matching host package' 69
+    ;;
+  *)
+    die 'release host metadata is invalid' 70
+    ;;
+  esac
   command -v docker >/dev/null 2>&1 || die 'docker is required' 69
+  docker compose version >/dev/null 2>&1 || die 'Docker Compose v2 is required' 69
+  engine_os=$(docker info --format '{{.OSType}}' 2>/dev/null) ||
+    die 'Docker engine is not running or is not accessible' 69
+  [[ $engine_os == linux ]] || die 'Docker must use the Linux container engine' 69
   [[ -f $env_file && ! -L $env_file ]] ||
     die "environment file must be a regular file: $env_file" 66
   [[ $(file_mode "$env_file") == 600 ]] || chmod 0600 "$env_file" ||
@@ -78,8 +99,14 @@ ensure_key() {
   [[ -d $parent && -w $parent ]] || die 'RSA key parent must exist and be writable'
   temporary=$(mktemp "$parent/.futu-key.XXXXXX")
   trap 'rm -f -- "$temporary"' EXIT HUP INT TERM
-  openssl genrsa -traditional -out "$temporary" 1024 >/dev/null 2>&1 ||
-    die 'OpenSSL could not generate the RSA key'
+  if ! openssl genrsa -traditional -out "$temporary" 1024 >/dev/null 2>&1; then
+    # macOS LibreSSL emits traditional PKCS#1 by default but does not recognize
+    # OpenSSL 3's explicit -traditional option.
+    openssl genrsa -out "$temporary" 1024 >/dev/null 2>&1 ||
+      die 'OpenSSL could not generate the RSA key'
+  fi
+  grep -Fqx -- '-----BEGIN RSA PRIVATE KEY-----' "$temporary" ||
+    die 'OpenSSL did not generate an unencrypted PKCS#1 RSA key'
   chmod 0600 "$temporary"
   [[ ! -e $path && ! -L $path ]] || die 'RSA key appeared during generation'
   mv -- "$temporary" "$path"

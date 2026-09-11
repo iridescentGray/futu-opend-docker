@@ -100,7 +100,8 @@ fi
 
 # This script is intentionally evaluated in the container.
 # shellcheck disable=SC2016
-run_timeout 30 docker run --rm --network none --entrypoint /bin/sh "$image_name" -eu -c '
+run_timeout 30 docker run --rm --platform linux/amd64 --network none \
+  --entrypoint /bin/sh "$image_name" -eu -c '
   test "$(id -u):$(id -g)" = 10001:10001
   test -x /opt/futu-opend/FutuOpenD
   test -x /usr/local/bin/start-futu-opend
@@ -110,7 +111,7 @@ run_timeout 30 docker run --rm --network none --entrypoint /bin/sh "$image_name"
 ' || fail 'required image files, modes, or non-root identity are invalid'
 
 set +e
-run_timeout 30 docker run --rm --network none \
+run_timeout 30 docker run --rm --platform linux/amd64 --network none \
   --entrypoint /opt/futu-opend/FutuOpenD "$image_name" -help \
   >"$test_root/help.out" 2>"$test_root/help.err"
 help_status=$?
@@ -150,6 +151,7 @@ run_timeout 10 docker volume create "$volume_name" >/dev/null
 container_created=true
 run_timeout 30 docker run -d \
   --name "$container_name" \
+  --platform linux/amd64 \
   --network none \
   --no-healthcheck \
   --mount "type=volume,source=${volume_name},target=/home/futu/.com.futunn.FutuOpenD" \
@@ -185,7 +187,7 @@ grep -Fq SMOKE_TERM_OK "$test_root/container.log" || fail 'SIGTERM did not reach
 
 password_canary='SMOKE_FAKE_PASSWORD_MUST_NOT_LEAK'
 md5_canary='SMOKE_FAKE_MD5_MUST_NOT_LEAK'
-if run_timeout 30 docker run --rm --network none --no-healthcheck \
+if run_timeout 30 docker run --rm --platform linux/amd64 --network none --no-healthcheck \
   --mount "type=bind,source=${fake_opend},target=/tmp/fake-opend,readonly" \
   -e FUTU_LOGIN_MODE=remember \
   -e FUTU_ACCOUNT_ID=smoke-fake-account \

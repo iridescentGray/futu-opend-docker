@@ -76,8 +76,11 @@ assert release_push_at < release_bundle_at < release_create_at
 assert 'IMAGE_REF' in release and 'sha256:' in release
 assert "tr '[:upper:]' '[:lower:]'" in release
 assert '--notes-file "release-notes/${GITHUB_REF_NAME}.md"' in release
+assert 'macos-apple-silicon.tar.gz' in release
+assert 'linux-amd64.tar.gz' in release
+assert 'dist macos-apple-silicon' in release
 assert 'apt-get install --yes expect' in release
-print('ok 5 - tagged releases publish one tested image and a digest-pinned source-free bundle')
+print('ok 5 - tagged releases publish one tested image and two digest-pinned host bundles')
 
 assert 'AUTO_MERGE_TOKEN' not in version
 assert 'gh pr merge' not in version
