@@ -121,7 +121,9 @@ if ((help_status == 124)); then
   sed -n '1,80{s/^/FutuOpenD stderr: /;p;}' "$test_root/help.err" >&2
   fail 'FutuOpenD -help timed out'
 fi
-for parameter in login_account login_by_remember area_code cfg_file; do
+# OpenD 10.10.7008 accepts the documented area_code argument but does not list
+# it in its built-in help output, so that wrapper mapping is covered by Layer 1.
+for parameter in login_account login_by_remember cfg_file; do
   grep -Fq "$parameter" "$test_root/help.out" "$test_root/help.err" ||
     fail "FutuOpenD -help omitted required parameter ${parameter}"
 done
