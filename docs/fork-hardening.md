@@ -1053,11 +1053,11 @@ retains `config --quiet`; Podman runs supported `config` while discarding only
 normal stdout so errors remain visible. Source initialization, release `init`,
 `reauth`, and `start`, and the Podman smoke all use this shared contract.
 
-| Check | Result | Notes |
-| --- | --- | --- |
-| First corrected main Publish attempt | FAILED | Docker Layer 2 reached its explicit 20-minute timeout; Podman and publication steps did not run. |
-| Second corrected main Publish attempt | FAILED | Docker Layer 2 passed; rootless Podman built the image, then `podman-compose 1.0.6` rejected `config --quiet`. Publication steps did not run. |
-| Engine validation unit tests | PASSED | Docker retains `config --quiet`; Podman omits the unsupported flag without fallback. |
-| Source and release simulated workflows | PASSED | Initialization and all release operations use the shared engine-specific validation path. |
-| Local rootless Podman smoke | SKIPPED | Podman is unavailable on the macOS host; the required Ubuntu workflow remains the runtime gate. |
-| Tagged `v10.10.7008-r4` GitHub Release | NOT RUN | Must wait for the new main workflow's Docker and rootless Podman gates. |
+| Check                                  | Result  | Notes                                                                                                                                         |
+| -------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| First corrected main Publish attempt   | FAILED  | Docker Layer 2 reached its explicit 20-minute timeout; Podman and publication steps did not run.                                              |
+| Second corrected main Publish attempt  | FAILED  | Docker Layer 2 passed; rootless Podman built the image, then `podman-compose 1.0.6` rejected `config --quiet`. Publication steps did not run. |
+| Engine validation unit tests           | PASSED  | Docker retains `config --quiet`; Podman omits the unsupported flag without fallback.                                                          |
+| Source and release simulated workflows | PASSED  | Initialization and all release operations use the shared engine-specific validation path.                                                     |
+| Local rootless Podman smoke            | SKIPPED | Podman is unavailable on the macOS host; the required Ubuntu workflow remains the runtime gate.                                               |
+| Tagged `v10.10.7008-r4` GitHub Release | NOT RUN | Must wait for the new main workflow's Docker and rootless Podman gates.                                                                       |

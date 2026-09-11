@@ -9,6 +9,8 @@ trap 'rm -rf -- "$test_root"' EXIT HUP INT TERM
 make_engine() {
   local directory=$1 name=$2 compose_status=$3
   mkdir -p "$directory"
+  # These variables expand only when the generated fake engine runs.
+  # shellcheck disable=SC2016
   printf '%s\n' \
     '#!/bin/bash' \
     '[[ -z ${ENGINE_CAPTURE:-} ]] || printf "%s\n" "$*" >>"$ENGINE_CAPTURE"' \
