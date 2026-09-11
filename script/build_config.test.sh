@@ -15,6 +15,7 @@ version = json.loads((root / 'opend_version.json').read_text(encoding='utf-8'))
 dockerfile = (root / 'Dockerfile').read_text(encoding='utf-8')
 workflow = (root / '.github/workflows/publish.yml').read_text(encoding='utf-8')
 smoke = (root / 'script/container_smoke.test.sh').read_text(encoding='utf-8')
+dockerignore = (root / '.dockerignore').read_text(encoding='utf-8').splitlines()
 
 stable = version['stableVersion']
 artifact = version['stableArtifact']
@@ -48,5 +49,9 @@ assert '--target runtime' in smoke
 assert ':ubuntu-stable' not in workflow and ':latest' not in workflow
 assert 'matrix.BASE_IMG' not in workflow
 print('ok 4 - runtime identity/layout and version-only amd64 publishing are explicit')
-print('1..4')
+
+for pattern in ('**/.env*', '**/*.pem', '**/*.key', '**/.com.futunn.FutuOpenD'):
+    assert pattern in dockerignore, pattern
+print('ok 5 - common environment, private-key, and OpenD-state paths are excluded from build context')
+print('1..5')
 PY

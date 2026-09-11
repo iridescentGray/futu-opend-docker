@@ -35,6 +35,10 @@ Coverage includes:
 
 - `interactive`/`remember` argv, account/area-code validation, stdin/TTY,
   child exit status, shared-state locking, and SIGTERM delivery through `exec`;
+- unified initialization ordering, protected missing-key generation,
+  service-port publication, one foreground OpenD process, and exit propagation;
+- fake-download TOFU candidate handling, automatic atomic mode-`0600` `.env`
+  update, download failure without file changes, and existing-lock reuse;
 - XML escaping, login-field absence, optional Telnet/WebSocket omission,
   special-character paths, and runtime file modes;
 - key source/target type, readability, containment, UID/GID/mode, and

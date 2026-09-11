@@ -23,6 +23,7 @@ Docker containerization for Futu OpenD — a trading API gateway for Futu Securi
 ├── package.json            # Layer 1, container smoke, default-skipped live acceptance
 ├── .env.example            # Tracked template — copy to ignored .env and set local account/config values
 ├── docs/
+│   ├── deployment.md       # Detailed build, login, key, network and state-volume guide
 │   └── E2E.md              # Three test layers, proof boundaries, CI and cleanup
 ├── k8s/                    # Reference k8s deployment + harness backend (kind/existing)
 │   ├── README.md           # Deploy + first-run SMS/CAPTCHA via kubectl, plus local-dev kind flow
@@ -39,6 +40,10 @@ Docker containerization for Futu OpenD — a trading API gateway for Futu Securi
 ├── script/
 │   ├── start.sh            # Entrypoint — validates login mode, renders XML, execs OpenD
 │   ├── start.test.sh       # Offline fake-OpenD wrapper tests
+│   ├── initialize-and-start.sh # Automatic local lock/key setup + port-published interactive service
+│   ├── initialize-and-start.test.sh # Fake Docker/OpenSSL orchestration tests
+│   ├── lock-artifact.sh    # Fixed-origin TOFU download and atomic local .env SHA lock
+│   ├── lock-artifact.test.sh # Fake-download artifact-lock tests
 │   ├── init-key.sh         # One-shot root helper: mode-0600 host key → futu-owned mode-0400 key volume
 │   ├── init-key.test.sh    # Offline fake-key failure/metadata tests
 │   ├── compose.test.sh     # docker compose config assertions with an explicit fake env file
@@ -65,10 +70,13 @@ Docker containerization for Futu OpenD — a trading API gateway for Futu Securi
 | Change CI triggers                     | `.github/workflows/publish.yml`                                   | Locked stable Ubuntu/amd64 image → GHCR                                                                    |
 | Update config template                 | `FutuOpenD.xml`                                                   | Login-free template with explicit `###FUTU_OPEND_*###` placeholders                                       |
 | Test startup wrapper                   | `script/start.test.sh`                                            | Offline fake OpenD; never proves real login                                                                |
+| Initialize or reauthenticate           | `script/initialize-and-start.sh`                                  | User-only private TTY; current process serves API immediately after official login                        |
+| Lock local first-trust artifact        | `script/lock-artifact.sh`                                         | Fixed official HTTPS temp download and atomic `.env` update; TOFU, not publisher authentication          |
 | Test Compose and key preparation       | `script/compose.test.sh`, `script/init-key.test.sh`                | Offline/fake inputs; Compose config only, no daemon                                                        |
 | Version detection                      | `script/check_version.js`                                         | Scraper with retry, timeout, validation                                                                    |
 | Run unit tests                         | `script/check_version.test.js`                                    | `npm run test:unit`                                                                                        |
 | Run layered verification               | `package.json`, `docs/E2E.md`                                     | Layer 1 offline; Layer 2 no-credential container; Layer 3 user-only live                                  |
+| Review detailed deployment behavior    | `docs/deployment.md`                                              | Build lock, key handling, login lifecycle, networks, health and state volumes                              |
 | Run k8s e2e                            | `script/e2e.k8s.test.mjs`                                         | `npm run test:k8s` (kind = manifest-only) or `K8S_E2E_BACKEND=existing npm run test:k8s`                   |
 | Deploy on k8s                          | `k8s/`                                                            | `kubectl apply -k k8s/`; SMS/CAPTCHA flow at [k8s/README.md](k8s/README.md)                                |
 | Compose helpers (Node)                 | `script/lib/docker.mjs`                                           | `composeUp`, `sendTelnetCommand`, `tailLogs`, `inspectHealth`                                              |
@@ -110,7 +118,7 @@ Docker containerization for Futu OpenD — a trading API gateway for Futu Securi
 - **XML templating**: `start.sh` XML-escapes values and substitutes explicit placeholders without `sed` or `eval`; runtime configuration is mode `0600` and contains no login fields.
 - **Pinned bases**: Ubuntu 22.04 amd64 fetch stage plus Ubuntu 18.04 amd64 compatibility runtime, both by manifest digest. Bionic is out of standard support and remains pending real binary migration validation.
 - **Liveness/readiness split**: health checks PID 1's `/proc` process name; readiness requires an SDK result and is never inferred from health.
-- **First login / reauthentication**: only the user runs `FUTU_LOGIN_MODE=interactive` with the exact standalone-file `docker compose run --rm --interactive` command in `README.md`; its key-init dependency must not be skipped. Agents never enter passwords or verification codes. Routine startup uses `remember` with the unchanged `futu-opend-data` volume.
+- **First login / reauthentication**: only the user runs `bash script/initialize-and-start.sh` in a private TTY. The helper records a missing local TOFU lock, prepares a missing key, and runs one port-published `interactive` container in the foreground. After official login that same process serves the API; no second container is started. Agents never enter passwords or verification codes for the user.
 - **Login session persistence**: Named volume `futu-opend-data` at `/home/futu/.com.futunn.FutuOpenD`; the Dockerfile pre-creates the path with `futu:futu` ownership for first-mount inheritance.
 
 ## COMMANDS

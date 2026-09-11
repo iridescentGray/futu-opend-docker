@@ -9,7 +9,7 @@ description: |
 # FutuOpenD fork operator
 
 This fork targets one personal Linux/amd64 OpenD 10.10.7008 instance under
-Docker Compose. Read `AGENTS.md`, `README.md`, and
+Docker Compose. Read `AGENTS.md`, `README.md`, `docs/deployment.md`, and
 `docs/fork-hardening.md` before acting.
 
 ## Non-negotiable login boundary
@@ -45,11 +45,19 @@ Official sources:
 
 ## Safe Compose guidance
 
-For first initialization or reauthentication, tell the user to run the exact
-private-terminal procedure from `README.md`. It stops the routine service with
-`docker compose down` (without `-v`) before a one-off `interactive` container,
-so both flows use the same `futu` user, `/home/futu` HOME, and unchanged named
-volume without simultaneous OpenD processes.
+For first initialization or reauthentication, tell the user to run
+`bash script/initialize-and-start.sh` in a private terminal. This single user
+command safely prepares a missing key, stops the routine service without `-v`,
+runs one `interactive` container with service ports in the foreground, and
+keeps that same OpenD process as the API service after official login. It does
+not start a second container or infer login success from an exit code or file.
+
+If `FUTU_OPEND_SHA256` is empty, the same command invokes
+`script/lock-artifact.sh`: it downloads only a temporary copy from the fixed
+official HTTPS origin, validates it, displays the candidate, and atomically
+updates the local `.env` without another prompt. Executing initialization is
+the user's explicit choice to accept this TOFU behavior; it is not publisher
+authentication. Agents never invent a digest.
 
 Use exactly one complete Compose file:
 

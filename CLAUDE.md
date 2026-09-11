@@ -1,7 +1,8 @@
 # CLAUDE.md
 
 Agent workflow notes for this FutuOpenD fork. Read `AGENTS.md`, `README.md`,
-and `docs/fork-hardening.md` first; their safety boundaries apply here.
+`docs/deployment.md`, and `docs/fork-hardening.md` first; their safety
+boundaries apply here.
 
 ## Current target and login model
 
@@ -21,6 +22,12 @@ OpenD 10.10.7008.
 
 The exact user-run commands are in `README.md`. Do not execute them for the
 user because they can enter the real login and verification flow.
+
+The supported first-login and reauthentication entry point is one user command,
+`bash script/initialize-and-start.sh`. It automatically records a missing local
+TOFU digest, prepares the key and runs one port-published interactive OpenD in
+the foreground. Agents never enter the official account, password or
+verification prompts.
 
 ## Safe development commands
 
@@ -42,6 +49,8 @@ npm run test:unit
 
 # Shell syntax only
 bash -n script/start.sh script/start.test.sh \
+  script/initialize-and-start.sh script/initialize-and-start.test.sh \
+  script/lock-artifact.sh script/lock-artifact.test.sh \
   script/download_futu_opend.sh script/download_futu_opend.test.sh
 
 # Scrape the version page (networked; do not run unless requested)

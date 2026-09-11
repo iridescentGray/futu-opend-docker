@@ -1,6 +1,8 @@
 {
   "scripts": {
     "test:build-config": "bash script/build_config.test.sh",
+    "test:initialize": "bash script/initialize-and-start.test.sh",
+    "test:artifact-lock": "bash script/lock-artifact.test.sh",
     "test:compose": "bash script/compose.test.sh",
     "test:ci-config": "bash script/ci_config.test.sh",
     "test:ci-gate": "bash script/ci_gate.test.sh",

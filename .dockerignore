@@ -9,7 +9,10 @@
 **/.venv
 **/.classpath
 **/.dockerignore
-**/.env
+**/.env*
+**/*.key
+**/*.pem
+**/.com.futunn.FutuOpenD
 **/.git
 **/.gitignore
 **/.project

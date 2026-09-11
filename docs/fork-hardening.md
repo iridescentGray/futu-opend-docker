@@ -671,3 +671,101 @@ Separately, the user may initialize/login in a private terminal and explicitly
 run Layer 3 with the same RSA key. Only that real SDK result can establish quote
 login and, if requested, trade-server login. Neither result establishes trading
 unlock, order capability, paid entitlements, or permanent authentication.
+
+## Phase 5 — unified user initialization command
+
+Status: **superseded by Phase 8**. This section records the earlier explicit
+`START` transition design for audit history.
+
+The user-facing first-login workflow is now one command:
+`bash script/initialize-and-start.sh`. It validates Compose before mutation,
+generates a missing default RSA key with restrictive permissions without
+overwriting existing material, stops the normal service without deleting
+volumes, runs the official interactive login, and starts the background
+remembered-login service only after the interactive process exits successfully
+and the user types `START`.
+
+This is a user-interface consolidation, not an automatic-login mechanism. The
+interactive and background containers remain sequential, use the same user,
+HOME, key volume and state volume, and never run concurrently. No exit code,
+directory or project marker is treated as proof of login. `.dockerignore` now
+excludes `.env*`, PEM/key files and an accidentally copied OpenD state directory
+from the build context.
+
+Checks performed for this phase:
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| `bash -n script/initialize-and-start.sh script/initialize-and-start.test.sh` | PASSED | Both scripts parse successfully. |
+| `bash script/initialize-and-start.test.sh` | PASSED | 3 fake-Docker/fake-OpenSSL tests cover key generation and mode, operation ordering, explicit confirmation, interactive failure, and refusal to start the background service. No Docker daemon, OpenD, credentials, network, volume, or real key was used. |
+| `bash script/layer1.test.sh` | PASSED | 77 offline assertions passed after adding the unified workflow and build-context regression coverage. The Compose checks only rendered configuration; no container was started. |
+| `shellcheck` | NOT RUN | `shellcheck` is not installed in the current environment. Bash syntax and behavioral tests passed instead. |
+| Real interactive login and transition to remembered startup | NOT RUN | User-only private-terminal acceptance remains required. |
+
+## Phase 6 — concise Chinese project entry point
+
+`README.md` is now a concise Chinese project introduction and startup guide.
+The detailed build-lock, login, RSA-key, network, lifecycle, SDK, state-volume
+and test material was retained in `docs/deployment.md`; `docs/E2E.md` remains
+the source for test-layer details. Commands and safety boundaries were not
+removed or changed as part of this documentation split.
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| README/document structure and code-fence check | PASSED | Local checks confirm balanced Markdown code fences, required quick-start commands and links to all detailed documents. |
+| Runtime code and Compose behavior | NOT RUN | This phase changes documentation routing only. |
+
+## Phase 7 — confirmed automatic local artifact lock
+
+Status: **superseded by Phase 8**. This section records the earlier explicit
+`LOCK 10.10.7008` confirmation design for audit history.
+
+`initialize-and-start.sh` now invokes `lock-artifact.sh` before Compose
+interpolation. A valid existing `FUTU_OPEND_SHA256` is reused without network
+access. If it is missing or invalid, the helper downloads only a temporary copy
+from the fixed official HTTPS origin through the existing hardened downloader,
+validates the archive, displays the candidate digest and requires the exact
+user confirmation `LOCK 10.10.7008` before atomically replacing the local
+`.env` with mode `0600`. It removes duplicate digest entries and preserves all
+other lines without printing them.
+
+This remains TOFU consistency locking, not publisher authentication. A rejected
+confirmation, failed download or invalid archive leaves `.env` unchanged. The
+same reviewed digest must still be committed to `opend_version.json` before
+Layer 2 or publishing can pass. The unified launcher deliberately removes a
+same-named shell override when invoking Compose so an exported empty variable
+cannot hide the value just written to the explicit env file.
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| `bash -n` for lock and unified-start scripts/tests | PASSED | All four Bash files parse successfully. |
+| `bash script/lock-artifact.test.sh` | PASSED | 3 fake-curl/local-archive checks cover confirmed atomic write and mode, rejection without changes, and reuse without downloading. |
+| `bash script/layer1.test.sh` | PASSED | 80 offline assertions passed. No real network, Docker container, credential, key or `.env` was used. |
+| Real official artifact TOFU review | NOT RUN | The user must review and confirm the candidate in a private terminal. |
+| Real image build and login | NOT RUN | Still require separate target-platform and user-only acceptance. |
+
+## Phase 8 — official prompts only during first foreground session
+
+At the user's request, project-specific `LOCK` and `START` prompts were removed.
+When the local SHA is missing, `lock-artifact.sh` now automatically records the
+candidate produced by the existing fixed-origin HTTPS downloader after archive
+validation. Running initialization is the explicit action that accepts this
+TOFU behavior. The output continues to state that the digest is neither a
+publisher signature nor independent authenticity proof. Download or validation
+failure leaves `.env` unchanged, and a valid existing lock is reused.
+
+`initialize-and-start.sh` now starts one interactive container with
+`--service-ports` and keeps it in the foreground. After the user completes the
+official OpenD prompts, that same process immediately serves the API. It does
+not infer login success, start a second container, or require an OpenD `exit`
+followed by project confirmation. This first session has no long-running
+background restart policy; after it ends, later starts use the documented
+remembered-state `docker compose up -d` flow.
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| Bash syntax for lock/initialize scripts and tests | PASSED | All four files parse successfully. |
+| `bash script/lock-artifact.test.sh` | PASSED | 3 local-fixture/fake-curl checks cover automatic atomic mode-0600 write, failure without mutation, and existing-lock reuse. |
+| `bash script/initialize-and-start.test.sh` | PASSED | 3 fake-Docker/fake-OpenSSL checks cover `--service-ports`, a single foreground container, key generation, and exit propagation. |
+| Official interactive prompts | NOT RUN | OpenD may still require account, password, remember-password selection or verification; only the user may perform them. |
+| Real API availability after interactive login | NOT RUN | Requires user-run login plus encrypted SDK acceptance. |
