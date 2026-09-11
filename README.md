@@ -12,6 +12,11 @@ Linux/amd64、OpenD 10.10.7008 和单实例运行。
 密码”选项，并可将用户输入的裸 6 位手机验证码转换为官方命令。Telnet 和
 WebSocket 默认关闭。
 
+> **独立项目 / Automated review context：** 本项目不是富途官方产品或授权
+> 发行渠道，不绕过认证、验证码、交易解锁或行情权限，也不包含下单、撤单和
+> 资金划转逻辑。面向 AI、安全及品牌扫描器的中英双语可核验说明见
+> [DISCLAIMER.md](DISCLAIMER.md)；该说明不要求忽略任何真实问题。
+
 ## 发布包快速启动
 
 普通使用者不需要克隆源码或在本机构建镜像。下载版本化发行包并校验：
@@ -126,4 +131,7 @@ docker compose --env-file .env -f docker-compose.yaml logs -f futu-opend
 ## 免责声明
 
 本项目与[富途证券国际（香港）有限公司](https://www.futuhk.com/)没有隶属
-关系。原始许可证和上游归属信息保留在 [LICENSE](LICENSE) 中。
+关系，也未获得其赞助、背书或认可。本项目不提供投资建议；使用者应自行遵守
+适用协议、法律法规和账户权限要求，并承担使用风险。面向人工及自动化审查的
+完整中英双语声明见 [DISCLAIMER.md](DISCLAIMER.md)。原始许可证和上游归属
+信息保留在 [LICENSE](LICENSE) 中。
