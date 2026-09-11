@@ -91,10 +91,9 @@ LOCAL_RSA_FILE_PATH="$key_file" podman compose \
   --project-name "$project_name" --env-file "$env_file" \
   -f "$root_dir/release/compose.yaml" run --rm --no-deps futu-key-init
 
-metadata=$(LOCAL_RSA_FILE_PATH="$key_file" podman compose \
-  --project-name "$project_name" --env-file "$env_file" \
-  -f "$root_dir/release/compose.yaml" run --rm --no-deps \
-  --entrypoint stat futu-opend -c '%u:%g:%a' /.futu/futu.pem)
+metadata=$(podman run --rm --user 10001:10001 \
+  --volume "${project_name}_futu-opend-key:/.futu:ro" \
+  --entrypoint stat "$image_name" -c '%u:%g:%a' /.futu/futu.pem)
 [[ $metadata == *'10001:10001:400'* ]] || {
   printf 'FAILED: rootless Podman key metadata was %s\n' "$metadata" >&2
   exit 1
