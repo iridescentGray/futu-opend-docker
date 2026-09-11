@@ -1,8 +1,9 @@
 ---
 name: futu-opend
 description: |
-  Install and operate this fork's FutuOpenD 10.10.7008 Docker Compose service
-  on Linux/amd64 or an Apple Silicon Mac. Use for setup, initialization,
+  Install and operate this fork's FutuOpenD 10.10.7008 Docker or Podman Compose
+  service on Linux/amd64, or Docker Desktop service on an Apple Silicon Mac.
+  Use for setup, initialization,
   remembered startup, restart, reauthentication, version changes,
   troubleshooting, or teardown requests.
 ---
@@ -10,8 +11,8 @@ description: |
 # FutuOpenD fork operator
 
 This fork targets one personal Linux/amd64 OpenD 10.10.7008 container under
-Docker Compose. Source-free bundles support native Linux/amd64 hosts and Apple
-Silicon Macs through Docker Desktop amd64 emulation. Read `AGENTS.md`,
+Docker or Podman Compose. Source-free bundles support native Linux/amd64 hosts;
+Apple Silicon Macs retain Docker Desktop amd64 emulation. Read `AGENTS.md`,
 `README.md`, `docs/deployment.md`, and `docs/fork-hardening.md` before acting.
 
 ## Non-negotiable login boundary
@@ -29,7 +30,7 @@ Silicon Macs through Docker Desktop amd64 emulation. Read `AGENTS.md`,
   prohibited.
 - Never clear, rename, migrate, or inspect the contents of the
   `futu-opend-data` volume as a login-recovery action.
-- Never run `docker compose down -v` or global Docker cleanup.
+- Never run Compose `down -v` or global Docker/Podman cleanup.
 
 ## Login model
 
@@ -65,6 +66,11 @@ Select the archive matching the host: `linux-amd64` for a Linux x86-64 host or
 compatibility package, not a native arm64 OpenD image. It requires Docker
 Desktop in Linux-container mode with Compose v2; Apple Virtualization framework
 with Rosetta is recommended. Do not bypass the launcher's host or engine checks.
+The Linux launcher defaults `FUTU_CONTAINER_ENGINE` to `auto`, preferring a
+working `docker compose` and otherwise using a working `podman compose`.
+Explicit `docker` and `podman` selections do not fall back. Rootless Podman is
+the supported Podman path; do not use sudo, aliases, privileged containers,
+`:U`, or `--userns=keep-id`. The macOS bundle remains Docker-only.
 
 Do not tell a release-bundle consumer to run the source-tree scripts below.
 Those remain the maintainer/developer path.
@@ -72,8 +78,9 @@ Those remain the maintainer/developer path.
 For first initialization or reauthentication, tell the user to run
 `bash script/initialize-and-start.sh` in a private terminal. This single user
 command safely prepares a missing key, stops the routine service without `-v`,
-runs one `interactive` container with service ports in the foreground, and
-keeps that same OpenD process as the API service after official login. It does
+runs the key initializer to successful completion, then runs one `interactive`
+container with service ports in the foreground and keeps that same OpenD
+process as the API service after official login. It does
 not start a second container or infer login success from an exit code or file.
 The host-side Expect proxy fills the configured account and `Y`, optionally
 submits a non-empty local `FUTU_LOGIN_PASSWORD` once, and accepts a bare
@@ -108,7 +115,11 @@ one-shot, networkless, non-restarting root helper that prepares a mode-`0400`,
 actual-`futu`-owned copy in the key volume. OpenD remains non-root and mounts
 that volume read-only. Never bypass failures by loosening permissions.
 
-Routine operation uses `FUTU_LOGIN_MODE=remember` and `docker compose up -d`.
+Routine operation uses `FUTU_LOGIN_MODE=remember`. With the release bundle,
+always use `./futu-opend start`; it resolves the
+engine, prepares the key volume explicitly, and starts OpenD only after that
+step succeeds. Source initialization accepts
+`FUTU_CONTAINER_ENGINE=podman bash script/initialize-and-start.sh`.
 If remembered state is missing or rejected, stop and point back to the manual
 reauthentication procedure. Do not infer login success from a directory or
 wrapper lock file, and do not promise that Futu will keep the session valid.

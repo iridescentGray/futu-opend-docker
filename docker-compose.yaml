@@ -20,6 +20,8 @@ services:
         read_only: true
         bind:
           create_host_path: false
+          # Private relabel for SELinux-enforcing rootless Podman hosts.
+          selinux: Z
       - futu-opend-key:/.futu
 
   futu-opend:

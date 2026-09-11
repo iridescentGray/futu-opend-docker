@@ -398,6 +398,9 @@ configuration file. This conflict is recorded rather than silently resolved.
 - [x] Phase 14 — cross-platform release-test correction after the immutable r2
       tag failed safely, with portable checksum/mode checks and Ubuntu/amd64
       reproduction before preparing r3.
+- [x] Phase 15 — Docker/Podman dual-runtime compatibility: centralized engine
+      selection, provider-independent key ordering, rootless/SELinux handling,
+      release-bundle support, simulated command coverage, and Podman CI smoke.
 
 The phases deliberately keep login, security configuration, build hardening,
 and test/CI work separate. Target-platform real login, SDK readiness, image
@@ -967,3 +970,67 @@ publishes nothing unless they all pass.
 | Ubuntu/amd64 release test reproduction | PASSED | The same 5 checks passed in a read-only-mounted `ubuntu:22.04` container with no network, credentials, or production resources. |
 | r2 publication boundary | PASSED | Public workflow evidence shows Layer 2, registry authentication, image push, digest resolution, bundle build, and GitHub Release creation were all skipped after Layer 1 failed. |
 | Tagged `v10.10.7008-r3` GitHub Release | NOT RUN | Requires the corrected commit and new immutable tag to be pushed. |
+
+## Phase 15 — Docker and rootless Podman Compose compatibility
+
+Phase baseline commit: `50848067979e38e2ba9c520f184277c5002fbc68`.
+
+### Changes
+
+- Added a sourceable Bash engine resolver shared by the source initializer and
+  generated release bundles. `FUTU_CONTAINER_ENGINE=auto` verifies the Compose
+  subcommand and prefers Docker, then Podman; explicit `docker|podman` modes do
+  not fall back, invalid values fail, and commands are stored in Bash arrays
+  without `eval`.
+- Kept the existing source and release Compose models instead of adding full
+  Podman copies. Their private-key bind now uses standard private SELinux `Z`
+  relabeling while retaining read-only access and
+  `create_host_path: false`.
+- Removed dependence on provider-specific `depends_on.condition` scheduling
+  from managed workflows. Both source initialization and release `init`,
+  `reauth`, and `start` explicitly run `futu-key-init` with `--no-deps` and
+  proceed to OpenD only after success. The Compose condition remains for the
+  unchanged direct Docker Compose workflow.
+- Preserved the fixed non-root OpenD UID/GID and key contract. A new isolated
+  Podman smoke builds the same `Dockerfile`, renders source and release Compose,
+  runs the initializer under rootless Podman, and checks the named-volume key
+  as `10001:10001:0400`. No `Containerfile`, alias, sudo, privileged mode,
+  `:U`, host networking, or user-namespace override was introduced.
+- Release bundles now include the small engine helper. The Linux/amd64 bundle
+  supports Docker or rootless Podman without edits; the existing Apple Silicon
+  bundle deliberately retains its tested Docker Desktop path.
+- PR CI installs the distro Podman and `podman-compose` provider, forces that
+  provider, and makes the rootless Podman build/Compose/key-volume smoke a
+  required result for non-documentation changes. The aggregate gate rejects a
+  failed, cancelled, missing, or unexpectedly skipped Podman job.
+- Trusted main-image publishing and immutable tag releases rerun the same
+  required Podman smoke after Docker Layer 2 and before registry authentication.
+- Updated README, deployment/E2E documentation, release instructions,
+  repository agent guidance, and the operator skill. Docker's `json-file`
+  `max-size`/`max-file` rotation remains intact; CI container creation is the
+  compatibility gate for providers where Podman aliases `json-file` to
+  `k8s-file` but does not document `max-file` itself.
+
+### Checks
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| `bash script/layer1.test.sh` | PASSED | 103 offline assertions, including all eight engine-selection cases, source Podman initialization, all six release commands, Compose SELinux rendering, release contents, and strict CI gate outcomes. |
+| Docker Compose v5.4 model rendering | PASSED | Bridge/host source models accepted `create_host_path: false` plus `bind.selinux: Z`; existing port, network, restart, health, dependency, and log fields remain present. |
+| `bash script/container_smoke.test.sh` | PASSED | Docker Desktop built and ran the locked Linux/amd64 image under emulation without credentials; Dockerfile change remained compatible. |
+| Workflow YAML, package/version JSON, Bash syntax, `git diff --check` | PASSED | All changed workflow and script syntax parsed; no whitespace errors. |
+| Operator-skill frontmatter parse | PASSED | Ruby YAML parsed the updated frontmatter. |
+| Skill Creator `quick_validate.py` | NOT RUN | The available Python environment lacks its `yaml` module; no dependency was installed. |
+| `npm run test:offline` / JavaScript unit tests | NOT RUN | Node/npm are not installed on this host; the underlying complete shell/config layer passed directly. |
+| Local `bash script/podman_smoke.test.sh` | SKIPPED | Podman is not installed on this macOS host. The required Linux rootless run exists in PR CI but has not run locally. |
+| SELinux enforcing-host relabel | NOT RUN | The Compose model uses the standard private `Z` option; this host is macOS and cannot prove an enforcing Linux label transition. |
+| Real OpenD login, remembered session, and SDK readiness | NOT RUN | These remain user-only acceptance and were not inferred from container tests. |
+
+### Known boundary
+
+`podman compose` delegates to an external provider, so exact field support is
+provider/version dependent. The project tests the distro `podman-compose`
+provider in Ubuntu PR CI and documents upgrading the provider if it rejects the
+preserved Docker `max-file` logging option. The local work did not claim a
+rootless or SELinux runtime pass because neither Podman nor SELinux is available
+on the audit host.

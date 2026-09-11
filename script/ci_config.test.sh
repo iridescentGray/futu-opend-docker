@@ -43,10 +43,14 @@ print('ok 2 - PR CI is read-only, credential-free, non-publishing, and artifact-
 
 assert 'LAYER1_RESULT:' in ci
 assert 'LAYER2_RESULT:' in ci
+assert 'PODMAN_RESULT:' in ci
 assert 'BUILD_REQUIRED:' in ci
 assert 'bash script/ci_gate.sh' in ci
 assert 'README.md|AGENTS.md|CLAUDE.md|LICENSE|docs/*' in ci
 assert 'npm run test:unit' in ci and 'npm run test:offline' in ci
+assert 'PODMAN_COMPOSE_PROVIDER: podman-compose' in ci
+assert 'bash script/podman_smoke.test.sh' in ci
+assert 'podman compose version' in ci
 print('ok 3 - aggregate gate receives all outcomes and delegates to the tested strict policy')
 
 assert 'pull_request:' not in publish
@@ -54,9 +58,10 @@ assert 'packages: write' in publish
 layer1_at = publish.index('npm run test:unit')
 offline_at = publish.index('npm run test:offline')
 layer2_at = publish.index('npm run test:smoke')
+podman_at = publish.index('bash script/podman_smoke.test.sh')
 login_at = publish.index('docker login')
 push_at = publish.index('docker push')
-assert layer1_at < offline_at < layer2_at < login_at < push_at
+assert layer1_at < offline_at < layer2_at < podman_at < login_at < push_at
 assert 'upload-artifact' not in publish
 assert 'apt-get install --yes expect' in publish
 print('ok 4 - publishing is trusted-event-only and occurs after both test layers')
@@ -67,11 +72,12 @@ assert 'contents: write' in release and 'packages: write' in release
 release_layer1_at = release.index('npm run test:unit')
 release_offline_at = release.index('npm run test:offline')
 release_layer2_at = release.index('npm run test:smoke')
+release_podman_at = release.index('bash script/podman_smoke.test.sh')
 release_login_at = release.index('docker login')
 release_push_at = release.index('docker push')
 release_bundle_at = release.index('build-release-bundle.sh')
 release_create_at = release.index('gh release create')
-assert release_layer1_at < release_offline_at < release_layer2_at < release_login_at < release_push_at
+assert release_layer1_at < release_offline_at < release_layer2_at < release_podman_at < release_login_at < release_push_at
 assert release_push_at < release_bundle_at < release_create_at
 assert 'IMAGE_REF' in release and 'sha256:' in release
 assert "tr '[:upper:]' '[:lower:]'" in release

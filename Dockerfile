@@ -4,7 +4,7 @@
 # on amd64. Digests below are the linux/amd64 manifests recorded in that file.
 FROM --platform=linux/amd64 ubuntu:22.04@sha256:281c5745f657873d78e5531fc5ba8575f46ab7769b94550ac99543f122679986 AS fetch
 
-ARG TARGETARCH
+ARG TARGETARCH=amd64
 ARG FUTU_OPEND_VER
 ARG FUTU_OPEND_SHA256
 
@@ -27,7 +27,7 @@ RUN test -n "$FUTU_OPEND_VER" && \
 # on binary dependency and no-credential startup validation.
 FROM --platform=linux/amd64 ubuntu:18.04@sha256:dca176c9663a7ba4c1f0e710986f5a25e672842963d95b960191e2d9f7185ebe AS runtime
 
-ARG TARGETARCH
+ARG TARGETARCH=amd64
 ARG FUTU_OPEND_VER
 ARG FUTU_UID=10001
 ARG FUTU_GID=10001

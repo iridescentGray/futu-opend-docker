@@ -10,6 +10,9 @@ readonly env_file=${FUTU_ENV_FILE:-$bundle_dir/.env}
 readonly compose_file=$bundle_dir/compose.yaml
 readonly release_host_platform=@@FUTU_RELEASE_HOST_PLATFORM@@
 
+# shellcheck source=container-engine.sh
+source "$bundle_dir/container-engine.sh"
+
 die() {
   printf 'ERROR: %s\n' "$1" >&2
   exit "${2:-1}"
@@ -57,11 +60,14 @@ require_base() {
     die 'release host metadata is invalid' 70
     ;;
   esac
-  command -v docker >/dev/null 2>&1 || die 'docker is required' 69
-  docker compose version >/dev/null 2>&1 || die 'Docker Compose v2 is required' 69
-  engine_os=$(docker info --format '{{.OSType}}' 2>/dev/null) ||
-    die 'Docker engine is not running or is not accessible' 69
-  [[ $engine_os == linux ]] || die 'Docker must use the Linux container engine' 69
+  resolve_container_engine || exit $?
+  if [[ $release_host_platform == macos-apple-silicon && $container_engine == podman ]]; then
+    die 'the Apple Silicon release requires Docker Desktop; Podman is supported by the Linux/amd64 release' 69
+  fi
+  engine_os=$(container_engine_os 2>/dev/null) ||
+    die "$container_engine engine is not running or is not accessible" 69
+  [[ $engine_os == linux || $engine_os == Linux ]] ||
+    die "$container_engine must use a Linux container engine" 69
   [[ -f $env_file && ! -L $env_file ]] ||
     die "environment file must be a regular file: $env_file" 66
   [[ $(file_mode "$env_file") == 600 ]] || chmod 0600 "$env_file" ||
@@ -69,7 +75,12 @@ require_base() {
 }
 
 compose() {
-  docker compose --env-file "$env_file" -f "$compose_file" "$@"
+  "${compose_cmd[@]}" --env-file "$env_file" -f "$compose_file" "$@"
+}
+
+prepare_runtime_key() {
+  local key=$1
+  LOCAL_RSA_FILE_PATH="$key" compose run --rm --no-deps futu-key-init
 }
 
 key_path() {
@@ -122,6 +133,7 @@ initialize() {
   key=$(key_path)
   LOCAL_RSA_FILE_PATH="$key" compose config --quiet
   LOCAL_RSA_FILE_PATH="$key" compose down
+  prepare_runtime_key "$key"
 
   account=${FUTU_ACCOUNT_ID:-$(read_env_value FUTU_ACCOUNT_ID)}
   password=${FUTU_LOGIN_PASSWORD:-$(read_env_value FUTU_LOGIN_PASSWORD)}
@@ -142,8 +154,8 @@ initialize() {
   FUTU_EXPECT_ACCOUNT="$account" FUTU_EXPECT_PASSWORD="$password" \
     expect "$bundle_dir/interactive-login.exp" \
     env LOCAL_RSA_FILE_PATH="$key" \
-    docker compose --env-file "$env_file" -f "$compose_file" \
-    run --rm --interactive --service-ports \
+    "${compose_cmd[@]}" --env-file "$env_file" -f "$compose_file" \
+    run --rm --no-deps --interactive --service-ports \
     -e FUTU_LOGIN_MODE=interactive futu-opend
   status=$?
   set -e
@@ -163,7 +175,10 @@ init | reauth)
 start)
   require_base
   ensure_key
-  LOCAL_RSA_FILE_PATH="$(key_path)" compose up -d
+  selected_key=$(key_path)
+  LOCAL_RSA_FILE_PATH="$selected_key" compose config --quiet
+  prepare_runtime_key "$selected_key"
+  LOCAL_RSA_FILE_PATH="$selected_key" compose up -d --no-deps futu-opend
   ;;
 stop)
   require_base

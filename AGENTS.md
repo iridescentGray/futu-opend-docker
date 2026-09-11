@@ -7,7 +7,7 @@
 
 ## OVERVIEW
 
-Docker containerization for Futu OpenD — a trading API gateway for Futu Securities. The maintained build is one pinned Ubuntu-based Linux/amd64 target with automated version tracking and CI/CD to GHCR. Source-free releases support Linux/amd64 hosts and Apple Silicon Macs through Docker Desktop amd64 emulation.
+Docker/Podman containerization for Futu OpenD — a trading API gateway for Futu Securities. The maintained build is one pinned Ubuntu-based Linux/amd64 target with automated version tracking and CI/CD to GHCR. Source-free releases support Docker or rootless Podman on Linux/amd64 and Docker Desktop amd64 emulation on Apple Silicon Macs.
 
 > **For agents operating in this repo**: when the user asks to install, set up, deploy, restart, re-login, send an SMS code to, bump the version of, or troubleshoot FutuOpenD, follow [`skills/futu-opend/SKILL.md`](skills/futu-opend/SKILL.md). The skill collapses the scattered procedures in this file, [README.md](README.md), [k8s/README.md](k8s/README.md), [CLAUDE.md](CLAUDE.md), and [docs/E2E.md](docs/E2E.md) into one runbook covering compose / `docker run` / Kubernetes targets.
 
@@ -40,6 +40,9 @@ Docker containerization for Futu OpenD — a trading API gateway for Futu Securi
 │       └── references/     # Per-target / per-task detail pulled in on demand
 ├── script/
 │   ├── start.sh            # Entrypoint — validates login mode, renders XML, execs OpenD
+│   ├── container-engine.sh # Shared Docker/Podman Compose auto/explicit resolver
+│   ├── container-engine.test.sh # Fake-binary engine-selection matrix
+│   ├── podman_smoke.test.sh # Rootless Podman build/Compose/key-volume smoke
 │   ├── build-release-bundle.sh # Creates digest-pinned Linux and Apple Silicon host archives + checksums
 │   ├── release_bundle.test.sh # Offline release contents/launcher regression checks
 │   ├── start.test.sh       # Offline fake-OpenD wrapper tests
@@ -75,7 +78,7 @@ Docker containerization for Futu OpenD — a trading API gateway for Futu Securi
 | Change CI triggers                     | `.github/workflows/publish.yml`                                        | Locked stable Ubuntu/amd64 image → GHCR                                                         |
 | Update config template                 | `FutuOpenD.xml`                                                        | Login-free template with explicit `###FUTU_OPEND_*###` placeholders                             |
 | Test startup wrapper                   | `script/start.test.sh`                                                 | Offline fake OpenD; never proves real login                                                     |
-| Initialize or reauthenticate           | `script/initialize-and-start.sh`                                       | User-only private TTY; current process serves API immediately after official login              |
+| Initialize or reauthenticate           | `script/initialize-and-start.sh`                                       | Docker/Podman auto-selection; user-only private TTY; current process serves API after login      |
 | Build consumer release bundle          | `script/build-release-bundle.sh`, `release/`                           | Produces Linux/amd64 and macOS Apple Silicon host archives using one registry-digest-pinned image |
 | Operate from release bundle            | `release/futu-opend`, `release/compose.yaml`                           | `init` for first login; `start` for remembered background startup; no local image build         |
 | Modify interactive conveniences        | `script/interactive-login.exp`                                         | Wrapper-only env password is single-use; fake OpenD tests required; no Telnet                   |
@@ -100,6 +103,7 @@ Docker containerization for Futu OpenD — a trading API gateway for Futu Securi
 
 - **Multi-stage Docker**: `fetch` downloads the locked Ubuntu 18.04 artifact; `runtime` is both the explicit and default final Linux/amd64 stage. There is no `BASE_IMG` switch or maintained CentOS target.
 - **Non-root OpenD**: The main process runs as `futu`. The isolated `futu-key-init` service runs once as root, with no network and `restart: "no"`, only to copy a read-only mode-`0600` host key into the key volume as the actual `futu` UID/GID and mode `0400`.
+- **Container engine selection**: `FUTU_CONTAINER_ENGINE=auto` prefers a working `docker compose` and otherwise uses a working `podman compose`; explicit `docker|podman` never falls back. Source and release launchers explicitly finish `futu-key-init` before starting OpenD with `--no-deps`.
 - **Login modes (OpenD 10.10.7008 only)**: `FUTU_LOGIN_MODE=interactive` preserves an attached private TTY for official first-run login; `remember` requires `FUTU_ACCOUNT_ID` and passes the documented `-login_account` / `-login_by_remember=1` arguments. Phone accounts may set wrapper input `FUTU_ACCOUNT_AREA_CODE=+NN`; these environment variables are not native OpenD settings.
 - **Passwords**: OpenD 10.10.7008 removed account/password XML settings. Never write them to XML. Non-empty legacy `FUTU_ACCOUNT_PWD` / `FUTU_ACCOUNT_PWD_MD5` inputs fail with a value-free migration message. User-local `FUTU_LOGIN_PASSWORD` belongs only to the host login wrapper; agents never read or supply it.
 - **Scoped Expect proxy**: the host-side proxy may fill `FUTU_ACCOUNT_ID`, submit non-empty wrapper-only `FUTU_LOGIN_PASSWORD` once, answer the remember choice with `Y`, and expand a bare user-entered six-digit phone code only after the official hint. It removes the password before spawning Docker/OpenD and never writes a transcript, enables Telnet, retries a rejected password, or claims login success.
@@ -119,7 +123,7 @@ Docker containerization for Futu OpenD — a trading API gateway for Futu Securi
 - **NEVER** claim bridge or host login is verified without a user-run real login. Bridge is the default; host mode is an explicit standalone compatibility file.
 - **NEVER** loosen the host key beyond `0600`. The main service reads a separate futu-owned `0400` copy from a read-only key volume.
 - **NEVER** call process health API readiness. The Compose/Dockerfile PID-1 `/proc` check is liveness only, and Docker does not restart solely because health is `unhealthy`.
-- **NEVER** run `docker compose config` or `docker exec ... env` in shared sessions — environment output may contain account or other private configuration.
+- **NEVER** render Compose config or inspect container environments in shared sessions — output may contain account or other private configuration.
 - **NEVER** import `futu-api` from `script/lib/_pending/` — intentionally not in `package.json`.
 
 ## UNIQUE STYLES

@@ -6,7 +6,7 @@ boundaries apply here.
 
 ## Current target and login model
 
-The maintained container target is one personal Linux/amd64 Docker Compose
+The maintained container target is one personal Linux/amd64 Docker or Podman Compose
 instance with OpenD 10.10.7008. Source-free releases support Linux/amd64 hosts
 and Apple Silicon Macs through Docker Desktop amd64 emulation; the macOS bundle
 is not a native arm64 OpenD image.
@@ -32,7 +32,7 @@ TOFU digest, prepares the key and runs one port-published interactive OpenD in
 the foreground through `interactive-login.exp`. The proxy fills only the
 configured account and `Y`, and expands a user-entered bare six-digit phone
 code. It may submit wrapper-only `FUTU_LOGIN_PASSWORD` once; the password is
-removed before Docker/OpenD is spawned and must never be printed, copied into
+removed before the container engine/OpenD is spawned and must never be printed, copied into
 XML, or supplied by an agent.
 
 ## Safe development commands
@@ -46,6 +46,9 @@ npm run test:offline
 
 # Layer 2 requires Docker plus the reviewed artifact lock
 npm run test:smoke
+
+# Rootless Podman build/Compose/key-volume smoke; skips if Podman is absent
+npm run test:podman-smoke
 
 # Layer 3 default status only; agents never enable RUN_LIVE_TESTS
 npm run test:live
@@ -84,6 +87,8 @@ See `docs/E2E.md`.
 4. `script/init-key.sh` is the only root helper. It is networkless and
    non-restarting, copies a host mode-`0600` key into the key volume as the
    actual `futu` UID/GID and mode `0400`; OpenD mounts it read-only as `futu`.
+   Source and release launchers explicitly complete this helper before starting
+   OpenD, independent of Compose-provider dependency scheduling.
 5. Tests are split into offline unit/config, isolated no-credential container
    smoke, and user-only encrypted read-only SDK acceptance. Only the last layer
    can establish `qot_logined`; it is never enabled by agents or public CI.

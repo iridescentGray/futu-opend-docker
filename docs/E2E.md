@@ -7,6 +7,7 @@ must never be reported as a real OpenD login or business-readiness result.
 | ------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | 1 — unit/config     | `npm run test:layer1` | Node dependencies, Bash, Python, Compose CLI for config rendering; no daemon or credentials                   | Wrapper argv/XML/TTY/signals, permissions, download failures, version/build/Compose/CI contracts, secret-canary redaction | Image execution, real OpenD, login, API readiness                           |
 | 2 — container smoke | `npm run test:smoke`  | Docker daemon capable of native or emulated Linux/amd64, network for locked build, recorded OpenD SHA-256; no credentials | Actual image build, architecture/user/files/help, wrapper validation, custom-port rendering, controlled PID-1 TERM/exit | Login, remembered session, SDK response, business readiness |
+| 2P — Podman smoke | `npm run test:podman-smoke` | Linux/amd64 rootless Podman, Podman Compose provider, network for locked build; no credentials | Podman build, source/release Compose parsing, SELinux mount model, key-volume UID/GID/mode | Login, API readiness, SELinux enforcement on non-SELinux CI hosts |
 | 3 — live read-only  | `npm run test:live`   | Explicit `RUN_LIVE_TESTS=1`, user-initialized/logged-in OpenD, official Python SDK, matching readable RSA key | Encrypted `get_global_state()`, `qot_logined`, optional `trd_logined`                                                     | Trading unlock/order ability, paid quote rights, permanent session validity |
 
 ## Layer 1 — unit and configuration tests
@@ -36,7 +37,8 @@ Coverage includes:
 - `interactive`/`remember` argv, account/area-code validation, stdin/TTY,
   child exit status, shared-state locking, and SIGTERM delivery through `exec`;
 - unified initialization ordering, protected missing-key generation,
-  service-port publication, one foreground OpenD process, and exit propagation;
+  service-port publication, one foreground OpenD process, Docker/Podman engine
+  selection, explicit key-init completion, and exit propagation;
 - fake-OpenD Expect behavior for configured-account fill, optional one-time
   environment-password submission, automatic `Y`, bare six-digit phone-code
   expansion, rejected-password no-retry, missing-account failure, child-env
@@ -65,6 +67,11 @@ Coverage includes:
 
 Layer 1 invokes neither the Docker daemon nor Futu. Fake program and fake SDK
 results are wrapper tests only.
+
+The engine matrix uses temporary fake binaries to cover Docker-only,
+Podman-only, Docker preference, Docker-without-Compose fallback, both explicit
+modes, invalid input, and neither provider. Release-launcher tests exercise all
+six commands through the selected fake engine.
 
 ## Layer 2 — isolated no-credential container smoke
 
@@ -106,6 +113,22 @@ Docker prune. `SMOKE_IMAGE` may select an explicit test tag;
 A Layer 2 pass is reported as image/container smoke only. Exit code 0, a process
 marker, config file, or TCP availability is never translated into OpenD login or
 business readiness.
+
+## Layer 2P — rootless Podman smoke
+
+On Linux/amd64 with rootless Podman and a working Compose provider:
+
+```bash
+npm run test:podman-smoke
+```
+
+The test builds the same `Dockerfile` with `podman build`, renders both the
+source and release Compose models, runs the release key initializer, then checks
+from a non-root service container that the named-volume key is
+`10001:10001:0400`. It uses a unique project, image, temporary key and env file;
+its `down -v` cleanup targets only those test resources. It never starts a real
+login. On hosts without Podman it reports `SKIPPED`; CI sets
+`PODMAN_SMOKE_REQUIRED=1`, so missing prerequisites or failures are fatal.
 
 ## Layer 3 — operator-only encrypted read-only acceptance
 
@@ -180,14 +203,15 @@ Official references:
 
 `ci.yml` runs on pull requests with repository `contents: read` only. Layer 1
 always runs, including documentation changes and fork PRs. Layer 2 runs for code,
-configuration, workflow, or build changes. Its sole allowed skip is an explicit
+configuration, workflow, or build changes. The rootless Podman smoke runs for
+the same changes. Their sole allowed skip is an explicit
 classifier result where every changed file is `README.md`, `AGENTS.md`,
 `CLAUDE.md`, `LICENSE`, or below `docs/`.
 
 The final `ci-gate` uses `if: always()` but does not accept arbitrary `skipped`:
-Layer 1 must be `success`; required Layer 2 must be `success`; docs-only Layer 2
-must be exactly `skipped`. Missing outputs, upstream failure, cancellation, or an
-unexpected outcome fails the gate.
+Layer 1 must be `success`; required Docker Layer 2 and Podman smoke must both be
+`success`; docs-only checks must both be exactly `skipped`. Missing outputs,
+upstream failure, cancellation, or an unexpected outcome fails the gate.
 
 `publish.yml` has no pull-request trigger. Only a push to `main` or an explicit
 manual dispatch runs it. It reruns Layer 1 and Layer 2 against the exact image

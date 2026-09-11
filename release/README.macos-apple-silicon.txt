@@ -9,6 +9,9 @@ Requirements:
 - Apple Virtualization framework with Rosetta enabled is recommended
 - OpenSSL/LibreSSL and Expect (the macOS system versions are supported)
 
+Podman support is currently limited to the Linux/amd64 bundle; this macOS
+bundle retains its tested Docker Desktop path.
+
 1. Start Docker Desktop and wait until the engine is ready.
 2. cp env.example .env
 3. Edit .env and keep it private.

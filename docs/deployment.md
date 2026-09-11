@@ -1,6 +1,6 @@
 # 部署与运维详解
 
-本文保存 FutuOpenD Docker 项目的构建锁定、登录、密钥、网络、运行行为、
+本文保存 FutuOpenD Docker / Podman 项目的构建锁定、登录、密钥、网络、运行行为、
 状态卷和验收细节。快速启动请先阅读[项目首页](../README.md)。
 
 ## 支持范围
@@ -8,7 +8,8 @@
 - OpenD：`10.10.7008`。
 - 容器平台：Linux/amd64。
 - 宿主平台：Linux/amd64；macOS Apple Silicon 通过 Docker Desktop x86 仿真。
-- 部署：单实例 Docker Compose。
+- 部署：单实例 Docker Compose 或 Podman Compose；Linux/amd64 支持 rootless
+  Podman。macOS Apple Silicon 发行包仍使用 Docker Desktop。
 - 默认网络：普通 bridge，API 只发布到宿主机 `127.0.0.1`。
 - 兼容网络：独立的 `docker-compose.host.yaml`，不得与默认文件叠加。
 - 非主要目标：原生 Linux/arm64、原生 macOS OpenD、Kubernetes、多实例和业务
@@ -41,6 +42,18 @@ chmod 0600 .env
 `init` 和 `start` 代表 OpenD 的两种官方登录生命周期，不应在首次登录时连续
 执行。`init` 登录成功后的同一个前台进程已经是 API 服务；只有该会话结束或
 主机重启后，才使用 `start` 从命名卷中的 remembered 状态后台启动。
+
+Linux 启动器默认使用 `FUTU_CONTAINER_ENGINE=auto`，先实际检查
+`docker compose version`，不可用时再检查 `podman compose version`。Docker
+命令存在但 Compose 子命令不可用时也会选择 Podman。显式模式不会回退：
+
+```bash
+FUTU_CONTAINER_ENGINE=docker ./futu-opend start
+FUTU_CONTAINER_ENGINE=podman ./futu-opend start
+```
+
+不支持其他值，也不需要 `alias docker=podman`。`podman compose` 是外部
+Compose provider 的包装，部署前必须确保其版本检查成功。
 
 推送符合 `v<OpenD版本>-r<发行修订>` 的标签（例如
 `v10.10.7008-r1`）会触发发行工作流。工作流依次运行 Layer 1、对待发布镜像
@@ -90,6 +103,15 @@ bash script/download_futu_opend.sh --report-tofu \
 
 ```bash
 docker build --platform linux/amd64 --target runtime \
+  --build-arg FUTU_OPEND_VER=10.10.7008 \
+  --build-arg FUTU_OPEND_SHA256="${FUTU_OPEND_SHA256:?尚未锁定}" \
+  --tag futu-opend:ubuntu-10.10.7008 .
+```
+
+Podman 使用同一份 `Dockerfile`，不维护重复的 `Containerfile`：
+
+```bash
+podman build --platform linux/amd64 --target runtime \
   --build-arg FUTU_OPEND_VER=10.10.7008 \
   --build-arg FUTU_OPEND_SHA256="${FUTU_OPEND_SHA256:?尚未锁定}" \
   --tag futu-opend:ubuntu-10.10.7008 .
@@ -171,6 +193,12 @@ chmod 0600 futu.pem
 `futu` UID/GID 拥有并设为 `0400`。主 OpenD 服务以 `futu` 用户运行，
 只读挂载密钥卷。密钥初始化使用 `restart: "no"` 且没有网络命名空间。
 
+rootless Podman 使用 user namespace 将容器 UID/GID 映射到 subordinate ID；
+初始化器仍在容器内验证密钥为 `10001:10001`、模式 `0400`。不要使用
+`sudo podman`、`--userns=keep-id` 或会递归修改宿主文件的 `:U`。宿主私钥
+bind mount 保持只读、禁止自动创建，并使用私有 SELinux `Z` relabel，以支持
+Fedora、RHEL、Rocky、AlmaLinux 等 enforcing 主机；relabel 仅作用于该私钥。
+
 `FUTU_OPEND_RSA_FILE_PATH` 必须是 `/.futu` 的直接子项，默认值为
 `/.futu/futu.pem`。如使用其他宿主机路径，应在 `.env` 中记录，并在初始化
 时传入相同值：
@@ -186,6 +214,13 @@ LOCAL_RSA_FILE_PATH=/absolute/private/path/futu.pem \
 
 ```bash
 bash script/initialize-and-start.sh
+```
+
+源码流程同样自动选择引擎，也可明确选择：
+
+```bash
+FUTU_CONTAINER_ENGINE=docker bash script/initialize-and-start.sh
+FUTU_CONTAINER_ENGINE=podman bash script/initialize-and-start.sh
 ```
 
 脚本依次执行：
@@ -221,6 +256,19 @@ argv、环境变量或 XML。错误密码只自动提交一次，再次出现密
 docker compose --env-file .env -f docker-compose.yaml up -d
 docker compose --env-file .env -f docker-compose.yaml logs -f futu-opend
 ```
+
+Podman 下使用相同文件，但日常源码启动应显式执行安全顺序：
+
+```bash
+podman compose --env-file .env -f docker-compose.yaml \
+  run --rm --no-deps futu-key-init
+podman compose --env-file .env -f docker-compose.yaml \
+  up -d --no-deps futu-opend
+```
+
+初始化脚本与发行包启动器已经自动执行该顺序，不依赖 provider 对
+`depends_on.condition` 的实现。Compose 中仍保留
+`service_completed_successfully`，保护现有直接 Docker Compose 工作流。
 
 记住密码状态缺失或过期时，重新运行一体化初始化命令。不要删除、重命名或
 迁移状态卷，也不要无限认证重试。
@@ -286,6 +334,11 @@ Linux/amd64 上实际验证。
 `json-file` 日志限制为三个 10 MiB 文件。本阶段未启用 privileged、修改
 宿主机防火墙或 Docker daemon。业务就绪必须通过 SDK 实际返回值确认。
 
+Podman 将 `json-file` 作为 `k8s-file` 的兼容名称并支持 `max-size`。Docker 的
+`max-file` 选项在不同 Podman Compose provider 上可能有版本差异，因此 CI 会
+通过真实 rootless Podman Compose 创建密钥服务来验证受支持组合。若本机报
+日志选项错误，应升级 Podman/Compose provider，不要删除 Docker 的轮转保护。
+
 ## SDK 连接示例
 
 OpenD 和客户端必须使用同一把私钥，并在创建 context 前启用加密。
@@ -339,6 +392,9 @@ npm run test:layer1
 
 # 第二层：隔离的无凭据镜像/容器 smoke test
 npm run test:smoke
+
+# Linux/amd64 rootless Podman：构建、Compose 与密钥卷 smoke test
+npm run test:podman-smoke
 
 # 第三层默认显示 SKIPPED，公共 CI 永不启用
 npm run test:live

@@ -40,7 +40,7 @@ linux_bundle=$(cd "$test_root/futu-opend-10.10.7008-r2-linux-amd64" && pwd)
 mac_bundle=$(cd "$test_root/futu-opend-10.10.7008-r2-macos-apple-silicon" && pwd)
 
 for bundle in "$linux_bundle" "$mac_bundle"; do
-  for file in compose.yaml env.example futu-opend interactive-login.exp README.txt; do
+  for file in compose.yaml container-engine.sh env.example futu-opend interactive-login.exp README.txt; do
     [[ -f $bundle/$file ]]
   done
   grep -Fq "FUTU_OPEND_IMAGE=$image" "$bundle/env.example"
@@ -51,7 +51,7 @@ for bundle in "$linux_bundle" "$mac_bundle"; do
     printf 'release Compose unexpectedly contains a local build\n' >&2
     exit 1
   fi
-  grep -Fq 'run --rm --interactive --service-ports' "$bundle/futu-opend"
+  grep -Fq 'run --rm --no-deps --interactive --service-ports' "$bundle/futu-opend"
   grep -Fq -- '-e FUTU_LOGIN_MODE=interactive futu-opend' "$bundle/futu-opend"
   if grep -Fq 'down -v' "$bundle/futu-opend"; then
     printf 'release launcher contains destructive volume teardown\n' >&2
@@ -90,8 +90,14 @@ printf '%s\n' \
   '#!/usr/bin/env bash' \
   'if [[ ${1:-} == compose && ${2:-} == version ]]; then exit 0; fi' \
   'if [[ ${1:-} == info ]]; then printf "linux\n"; exit 0; fi' \
-  'printf "%s\n" "$*" >>"$DOCKER_CAPTURE"' \
+  'printf "%s\n" "$*" >>"$ENGINE_CAPTURE"' \
+  'if [[ ${!#} == futu-opend && " $* " == *" run "* ]]; then' \
+  '  printf "请输入账号\n>>> "; IFS= read -r account' \
+  '  printf "请输入密码\n>>> "; IFS= read -rs password' \
+  '  printf "\n请选择是否记住密码（Y代表记住，N代表不记住）\n>>> "; IFS= read -r remember' \
+  'fi' \
   >"$test_root/fake-bin/docker"
+cp "$test_root/fake-bin/docker" "$test_root/fake-bin/podman"
 # Simulate macOS LibreSSL: reject -traditional, then emit PKCS#1 by default.
 # shellcheck disable=SC2016
 printf '%s\n' \
@@ -106,20 +112,32 @@ printf '%s\n' \
   'printf "%s\n" "-----BEGIN RSA PRIVATE KEY-----" fake "-----END RSA PRIVATE KEY-----" >"$output"' \
   >"$test_root/fake-bin/openssl"
 chmod 0755 "$test_root/fake-bin/uname" "$test_root/fake-bin/docker" \
+  "$test_root/fake-bin/podman" \
   "$test_root/fake-bin/openssl"
 
 exercise_bundle() {
-  local bundle=$1 host_os=$2 host_arch=$3 capture=$4
+  local bundle=$1 host_os=$2 host_arch=$3 engine=$4 capture=$5
   cp "$bundle/env.example" "$bundle/.env"
   chmod 0600 "$bundle/.env"
   printf '%s\n' 'fake release key material' >"$bundle/futu.pem"
   chmod 0600 "$bundle/futu.pem"
-  DOCKER_CAPTURE="$capture" TEST_UNAME_S="$host_os" TEST_UNAME_M="$host_arch" \
+  ENGINE_CAPTURE="$capture" FUTU_CONTAINER_ENGINE="$engine" \
+    TEST_UNAME_S="$host_os" TEST_UNAME_M="$host_arch" \
     PATH="$test_root/fake-bin:$PATH" bash "$bundle/futu-opend" start
-  DOCKER_CAPTURE="$capture" TEST_UNAME_S="$host_os" TEST_UNAME_M="$host_arch" \
+  ENGINE_CAPTURE="$capture" FUTU_CONTAINER_ENGINE="$engine" \
+    TEST_UNAME_S="$host_os" TEST_UNAME_M="$host_arch" \
     PATH="$test_root/fake-bin:$PATH" bash "$bundle/futu-opend" stop
-  grep -Fq "compose --env-file $bundle/.env -f $bundle/compose.yaml up -d" "$capture"
+  ENGINE_CAPTURE="$capture" FUTU_CONTAINER_ENGINE="$engine" \
+    TEST_UNAME_S="$host_os" TEST_UNAME_M="$host_arch" \
+    PATH="$test_root/fake-bin:$PATH" bash "$bundle/futu-opend" status
+  ENGINE_CAPTURE="$capture" FUTU_CONTAINER_ENGINE="$engine" \
+    TEST_UNAME_S="$host_os" TEST_UNAME_M="$host_arch" \
+    PATH="$test_root/fake-bin:$PATH" bash "$bundle/futu-opend" logs
+  grep -Fq "compose --env-file $bundle/.env -f $bundle/compose.yaml run --rm --no-deps futu-key-init" "$capture"
+  grep -Fq "compose --env-file $bundle/.env -f $bundle/compose.yaml up -d --no-deps futu-opend" "$capture"
   grep -Fq "compose --env-file $bundle/.env -f $bundle/compose.yaml down" "$capture"
+  grep -Fq "compose --env-file $bundle/.env -f $bundle/compose.yaml ps" "$capture"
+  grep -Fq "compose --env-file $bundle/.env -f $bundle/compose.yaml logs -f futu-opend" "$capture"
   if grep -Fq -- 'down -v' "$capture"; then
     printf 'release stop attempted destructive volume teardown\n' >&2
     exit 1
@@ -130,18 +148,64 @@ exercise_bundle() {
   fi
 }
 
-exercise_bundle "$linux_bundle" Linux x86_64 "$test_root/linux-docker.args"
-exercise_bundle "$mac_bundle" Darwin arm64 "$test_root/mac-docker.args"
-printf 'ok 2 - both host launchers start and stop without exposing secrets or deleting volumes\n'
+exercise_bundle "$linux_bundle" Linux x86_64 podman "$test_root/linux-podman.args"
+exercise_bundle "$mac_bundle" Darwin arm64 auto "$test_root/mac-docker.args"
+printf 'ok 2 - Linux Podman and macOS Docker launchers preserve key ordering and volumes\n'
+
+run_bundle_with_tty() {
+  local bundle=$1 command_name=$2 capture=$3 output=$4
+  ENGINE_CAPTURE="$capture" FUTU_CONTAINER_ENGINE=podman \
+    TEST_UNAME_S=Linux TEST_UNAME_M=x86_64 PATH="$test_root/fake-bin:$PATH" \
+    python3 - "$bundle/futu-opend" "$command_name" "$output" <<'PY'
+import os
+import pty
+import sys
+
+script, command_name, output_path = sys.argv[1:]
+pid, fd = pty.fork()
+if pid == 0:
+    os.execv('/bin/bash', ['bash', script, command_name])
+output = bytearray()
+while True:
+    try:
+        chunk = os.read(fd, 4096)
+    except OSError:
+        break
+    if not chunk:
+        break
+    output.extend(chunk)
+_, status = os.waitpid(pid, 0)
+with open(output_path, 'wb') as stream:
+    stream.write(output)
+raise SystemExit(os.waitstatus_to_exitcode(status))
+PY
+}
+
+printf '%s\n' \
+  'FUTU_ACCOUNT_ID=fake-release-account' \
+  'FUTU_LOGIN_PASSWORD=FAKE_RELEASE_PASSWORD_MUST_NOT_LEAK' \
+  >>"$linux_bundle/.env"
+run_bundle_with_tty "$linux_bundle" init "$test_root/linux-podman.args" "$test_root/init.out"
+run_bundle_with_tty "$linux_bundle" reauth "$test_root/linux-podman.args" "$test_root/reauth.out"
+[[ $(grep -c 'run --rm --no-deps --interactive --service-ports' "$test_root/linux-podman.args") == 2 ]]
+if grep -Fq 'FAKE_RELEASE_PASSWORD_MUST_NOT_LEAK' "$test_root/linux-podman.args" ||
+  grep -Fq 'FAKE_RELEASE_PASSWORD_MUST_NOT_LEAK' "$test_root/init.out" ||
+  grep -Fq 'FAKE_RELEASE_PASSWORD_MUST_NOT_LEAK' "$test_root/reauth.out"; then
+  printf 'release init/reauth exposed the fake password\n' >&2
+  exit 1
+fi
+printf 'ok 3 - all six launcher operations stay behind the engine abstraction\n'
 
 rm -f -- "$mac_bundle/futu.pem"
-DOCKER_CAPTURE="$test_root/mac-docker.args" TEST_UNAME_S=Darwin TEST_UNAME_M=arm64 \
+ENGINE_CAPTURE="$test_root/mac-docker.args" FUTU_CONTAINER_ENGINE=docker \
+  TEST_UNAME_S=Darwin TEST_UNAME_M=arm64 \
   PATH="$test_root/fake-bin:$PATH" bash "$mac_bundle/futu-opend" start >/dev/null
 grep -Fqx -- '-----BEGIN RSA PRIVATE KEY-----' "$mac_bundle/futu.pem"
 [[ $(file_mode "$mac_bundle/futu.pem") == 600 ]]
-printf 'ok 3 - Apple Silicon launcher supports the macOS LibreSSL PKCS#1 fallback\n'
+printf 'ok 4 - Apple Silicon launcher supports the macOS LibreSSL PKCS#1 fallback\n'
 
-if DOCKER_CAPTURE="$test_root/mismatch.args" TEST_UNAME_S=Linux TEST_UNAME_M=x86_64 \
+if ENGINE_CAPTURE="$test_root/mismatch.args" FUTU_CONTAINER_ENGINE=docker \
+  TEST_UNAME_S=Linux TEST_UNAME_M=x86_64 \
   PATH="$test_root/fake-bin:$PATH" bash "$mac_bundle/futu-opend" status \
   >"$test_root/mismatch.out" 2>&1; then
   printf 'Apple Silicon package accepted a Linux host\n' >&2
@@ -149,7 +213,7 @@ if DOCKER_CAPTURE="$test_root/mismatch.args" TEST_UNAME_S=Linux TEST_UNAME_M=x86
 fi
 grep -Fq 'this release requires an Apple Silicon Mac' "$test_root/mismatch.out"
 [[ ! -e $test_root/mismatch.args ]]
-printf 'ok 4 - platform-specific launcher rejects a mismatched host before Docker access\n'
+printf 'ok 5 - platform-specific launcher rejects a mismatched host before Docker access\n'
 
 if bash "$root_dir/script/build-release-bundle.sh" \
   10.10.7008-r2 latest "$test_root/invalid" >/dev/null 2>&1; then
@@ -161,5 +225,5 @@ if bash "$root_dir/script/build-release-bundle.sh" \
   printf 'unsupported release host platform was accepted\n' >&2
   exit 1
 fi
-printf 'ok 5 - release builder rejects unpinned images and unsupported host platforms\n'
-printf '1..5\n'
+printf 'ok 6 - release builder rejects unpinned images and unsupported host platforms\n'
+printf '1..6\n'

@@ -62,6 +62,15 @@ jobs:
         env:
           SMOKE_KEEP_IMAGE: "1"
 
+      - name: Install Podman Compose provider
+        run: sudo apt-get install --yes podman podman-compose
+
+      - name: Run rootless Podman build, Compose, and key-volume smoke
+        run: bash script/podman_smoke.test.sh
+        env:
+          PODMAN_COMPOSE_PROVIDER: podman-compose
+          PODMAN_SMOKE_REQUIRED: "1"
+
       - name: Authenticate to GHCR after all test gates
         env:
           GHCR_TOKEN: ${{ github.token }}

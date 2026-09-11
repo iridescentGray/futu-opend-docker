@@ -18,8 +18,9 @@ set -eu
   printf '%s\n' "$@"
   printf 'END\n'
 } >>"${FAKE_DOCKER_LOG:?}"
-for argument in "$@"; do
-  if [[ $argument == run ]]; then
+if [[ ${!#} == futu-opend ]]; then
+  for argument in "$@"; do
+    if [[ $argument != run ]]; then continue; fi
     printf '请输入账号\n>>> '
     IFS= read -r account
     printf '请输入密码\n>>> '
@@ -32,8 +33,8 @@ for argument in "$@"; do
     printf '\n请选择是否记住密码（Y代表记住，N代表不记住）\n>>> '
     IFS= read -r remember
     exit "${FAKE_INTERACTIVE_STATUS:-0}"
-  fi
-done
+  done
+fi
 exit 0
 FAKE_DOCKER
 
@@ -50,7 +51,8 @@ printf '%s\n' \
   'controlled bootstrap test payload' \
   '-----END RSA PRIVATE KEY-----' >"$output"
 FAKE_OPENSSL
-chmod 0755 "$fake_bin/docker" "$fake_bin/openssl"
+cp "$fake_bin/docker" "$fake_bin/podman"
+chmod 0755 "$fake_bin/docker" "$fake_bin/podman" "$fake_bin/openssl"
 
 run_with_tty() {
   local output_file=$1
@@ -118,12 +120,14 @@ import sys
 
 parts = open(sys.argv[1], encoding='utf-8').read().split('CALL\n')[1:]
 calls = [part.split('END\n', 1)[0].splitlines() for part in parts]
-assert len(calls) == 3, calls
-assert calls[0][-2:] == ['config', '--quiet'], calls[0]
-assert calls[1][-1] == 'down', calls[1]
-assert 'run' in calls[2] and '--rm' in calls[2] and '--interactive' in calls[2], calls[2]
-assert '--service-ports' in calls[2], calls[2]
-assert 'FUTU_LOGIN_MODE=interactive' in calls[2], calls[2]
+assert len(calls) == 5, calls
+assert calls[0] == ['compose', 'version'], calls[0]
+assert calls[1][-2:] == ['config', '--quiet'], calls[1]
+assert calls[2][-1] == 'down', calls[2]
+assert calls[3][-4:] == ['run', '--rm', '--no-deps', 'futu-key-init'], calls[3]
+assert 'run' in calls[4] and '--rm' in calls[4] and '--interactive' in calls[4], calls[4]
+assert '--no-deps' in calls[4] and '--service-ports' in calls[4], calls[4]
+assert 'FUTU_LOGIN_MODE=interactive' in calls[4], calls[4]
 PY
 grep -Fq 'foreground OpenD process is the active API service' "$success_dir/output"
 [[ $(<"$success_dir/received-password") == "$password_canary" ]]
@@ -134,7 +138,7 @@ if grep -Fq "$password_canary" "$success_dir/output" ||
 fi
 printf 'ok 1 - one command protects the env/key and runs the port-published interactive service\n'
 
-[[ $(grep -c '^CALL$' "$success_log") == 3 ]]
+[[ $(grep -c '^CALL$' "$success_log") == 5 ]]
 printf 'ok 2 - a clean interactive exit does not launch a second OpenD container\n'
 
 failure_dir=$test_root/failure
@@ -157,7 +161,7 @@ failure_status=$?
 set -e
 [[ $failure_status == 23 ]]
 [[ $(<"$failure_dir/received-password") == "$override_password_canary" ]]
-[[ $(grep -c '^CALL$' "$failure_dir/docker.log") == 3 ]]
+[[ $(grep -c '^CALL$' "$failure_dir/docker.log") == 5 ]]
 grep -Fq 'interactive OpenD exited with status 23' "$failure_dir/output"
 if grep -Fq "$override_password_canary" "$failure_dir/output" ||
   grep -Fq "$override_password_canary" "$failure_dir/docker.log"; then
@@ -166,4 +170,19 @@ if grep -Fq "$override_password_canary" "$failure_dir/output" ||
 fi
 printf 'ok 3 - interactive OpenD failure is propagated without a second container\n'
 
-printf '1..3\n'
+podman_dir=$test_root/podman
+mkdir "$podman_dir"
+podman_key=$podman_dir/futu.pem
+PATH="$fake_bin:$PATH" \
+  FAKE_DOCKER_LOG="$podman_dir/podman.log" \
+  FAKE_RECEIVED_PASSWORD_FILE="$podman_dir/received-password" \
+  FUTU_CONTAINER_ENGINE=podman \
+  FUTU_ENV_FILE="$env_file" \
+  FUTU_COMPOSE_FILE="$root_dir/docker-compose.yaml" \
+  LOCAL_RSA_FILE_PATH="$podman_key" \
+  run_with_tty "$podman_dir/output"
+grep -Fq 'podman compose with the remembered state' "$podman_dir/output"
+[[ $(grep -c '^CALL$' "$podman_dir/podman.log") == 5 ]]
+printf 'ok 4 - source initialization uses the explicitly selected Podman Compose command\n'
+
+printf '1..4\n'

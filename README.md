@@ -4,7 +4,7 @@
 [![GHCR](https://img.shields.io/badge/GHCR-futu--opend--docker-blue)](https://github.com/iridescentGray/futu-opend-docker/pkgs/container/futu-opend-docker)
 [![License](https://img.shields.io/github/license/iridescentGray/futu-opend-docker)](LICENSE)
 
-面向个人长期使用的 FutuOpenD Docker Compose 项目，运行目标为
+面向个人长期使用的 FutuOpenD Docker / Podman Compose 项目，运行目标为
 Linux/amd64、OpenD 10.10.7008 和单实例。发行包支持 Linux/amd64 宿主机，
 以及通过 Docker Desktop x86 仿真运行的 macOS Apple Silicon（M1 或更新）。
 
@@ -29,7 +29,7 @@ WebSocket 默认关闭。
 该发行包运行固定的 Linux/amd64 OpenD 镜像，不是原生 arm64 OpenD：
 
 ```bash
-RELEASE=10.10.7008-r3
+RELEASE=10.10.7008-r4
 curl -fLO "https://github.com/iridescentGray/futu-opend-docker/releases/download/v${RELEASE}/futu-opend-${RELEASE}-macos-apple-silicon.tar.gz"
 curl -fLO "https://github.com/iridescentGray/futu-opend-docker/releases/download/v${RELEASE}/futu-opend-${RELEASE}-macos-apple-silicon.tar.gz.sha256"
 shasum -a 256 -c "futu-opend-${RELEASE}-macos-apple-silicon.tar.gz.sha256"
@@ -40,7 +40,7 @@ cd "futu-opend-${RELEASE}-macos-apple-silicon"
 ### Linux/amd64
 
 ```bash
-RELEASE=10.10.7008-r3
+RELEASE=10.10.7008-r4
 curl -fLO "https://github.com/iridescentGray/futu-opend-docker/releases/download/v${RELEASE}/futu-opend-${RELEASE}-linux-amd64.tar.gz"
 curl -fLO "https://github.com/iridescentGray/futu-opend-docker/releases/download/v${RELEASE}/futu-opend-${RELEASE}-linux-amd64.tar.gz.sha256"
 sha256sum -c "futu-opend-${RELEASE}-linux-amd64.tar.gz.sha256"
@@ -48,7 +48,9 @@ tar -xzf "futu-opend-${RELEASE}-linux-amd64.tar.gz"
 cd "futu-opend-${RELEASE}-linux-amd64"
 ```
 
-两个宿主包都需要 Docker、Docker Compose v2、OpenSSL/LibreSSL 和 `expect`。
+Linux/amd64 包需要以下任一容器运行环境：Docker Engine + Docker Compose，或
+Podman + Podman Compose（支持 rootless Podman）。macOS Apple Silicon 包仍
+需要 Docker Desktop + Compose v2。另外需要 OpenSSL/LibreSSL 和 `expect`。
 准备配置：
 
 ```bash
@@ -78,6 +80,17 @@ chmod 0600 .env
 ./futu-opend reauth
 ```
 
+Linux 启动器默认使用 `FUTU_CONTAINER_ENGINE=auto`：先检查
+`docker compose version`，不可用时再检查 `podman compose version`。可以明确
+指定引擎；显式模式不可用时会失败，不会回退：
+
+```bash
+FUTU_CONTAINER_ENGINE=docker ./futu-opend start
+FUTU_CONTAINER_ENGINE=podman ./futu-opend start
+```
+
+不需要也不应创建 `alias docker=podman`。
+
 发行包的 Compose 直接拉取由版本和 registry digest 固定的 Linux/amd64 GHCR
 镜像，不包含 Dockerfile、构建上下文或测试源码。macOS 包通过 Docker Desktop
 仿真该镜像。首次登录仍由用户在私有终端完成；当前前台 OpenD 进程登录成功后
@@ -85,7 +98,9 @@ chmod 0600 .env
 
 ## 源码构建与调试
 
-需要安装 Docker、Docker Compose、OpenSSL 和 `expect`。
+需要安装以下任一容器运行环境：Docker Engine + Docker Compose，或 Podman +
+Podman Compose；另外需要 OpenSSL 和 `expect`。Linux/amd64 支持 rootless
+Podman，且不需要 `sudo podman`。
 
 ### 1. 准备 `.env`
 
@@ -123,6 +138,13 @@ XML 或传入容器。不要改用已废弃的 `FUTU_ACCOUNT_PWD` 或
 bash script/initialize-and-start.sh
 ```
 
+默认自动优先 Docker，也可显式选择：
+
+```bash
+FUTU_CONTAINER_ENGINE=docker bash script/initialize-and-start.sh
+FUTU_CONTAINER_ENGINE=podman bash script/initialize-and-start.sh
+```
+
 脚本会自动填写 SHA-256、准备缺失的 RSA 密钥，然后以前台方式启动带 API
 端口的 OpenD。账号、非空的 `FUTU_LOGIN_PASSWORD` 和“记住密码”选项会自动
 填写；未配置密码时才需要手工输入。出现手机验证码命令提示时，只输入 6 位
@@ -139,8 +161,20 @@ docker compose --env-file .env -f docker-compose.yaml up -d
 docker compose --env-file .env -f docker-compose.yaml logs -f futu-opend
 ```
 
-登录状态失效时，重新运行 `bash script/initialize-and-start.sh`。不要执行
-`docker compose down -v`，否则会删除持久化登录状态。
+Podman 源码部署使用同一份 Compose 配置，但为避免依赖外部 provider 的启动
+顺序实现，日常启动也应显式先完成密钥服务：
+
+```bash
+podman compose --env-file .env -f docker-compose.yaml \
+  run --rm --no-deps futu-key-init
+podman compose --env-file .env -f docker-compose.yaml \
+  up -d --no-deps futu-opend
+```
+
+初始化脚本和发行包启动器已自动执行该顺序，无需别名。
+
+登录状态失效时，重新运行 `bash script/initialize-and-start.sh`。无论使用哪种
+引擎都不要执行 Compose `down -v`，否则会删除持久化登录状态。
 
 ## 详细文档
 
@@ -148,6 +182,17 @@ docker compose --env-file .env -f docker-compose.yaml logs -f futu-opend
 - [分层测试与真实只读验收](docs/E2E.md)
 - [Fork 加固审查记录](docs/fork-hardening.md)
 - [富途官方命令行 OpenD 文档](https://openapi.futunn.com/futu-api-doc/opend/opend-cmd.html)
+
+## 容器运行环境支持
+
+| Runtime | Support |
+| --- | --- |
+| Docker Engine + `docker compose` | supported |
+| Podman + `podman compose`（Linux/amd64） | supported |
+| Rootless Podman（Linux/amd64） | supported |
+| Rootful Podman | expected to work but not preferred |
+| Docker-compatible alias | not required |
+| macOS Apple Silicon + Podman | not tested; release bundle requires Docker Desktop |
 
 ## 免责声明
 

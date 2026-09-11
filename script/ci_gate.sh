@@ -4,6 +4,7 @@ set -Eeuo pipefail
 
 layer1_result=${LAYER1_RESULT-}
 layer2_result=${LAYER2_RESULT-}
+podman_result=${PODMAN_RESULT-}
 build_required=${BUILD_REQUIRED-}
 
 if [[ $layer1_result != success ]]; then
@@ -18,11 +19,21 @@ true)
       "${layer2_result:-missing}" >&2
     exit 1
   fi
+  if [[ $podman_result != success ]]; then
+    printf 'CI gate failed: Podman smoke was required and must succeed; got %s\n' \
+      "${podman_result:-missing}" >&2
+    exit 1
+  fi
   ;;
 false)
   if [[ $layer2_result != skipped ]]; then
     printf 'CI gate failed: docs-only Layer 2 must be the classified skip; got %s\n' \
       "${layer2_result:-missing}" >&2
+    exit 1
+  fi
+  if [[ $podman_result != skipped ]]; then
+    printf 'CI gate failed: docs-only Podman smoke must be the classified skip; got %s\n' \
+      "${podman_result:-missing}" >&2
     exit 1
   fi
   ;;
@@ -32,4 +43,4 @@ false)
   ;;
 esac
 
-printf 'PASSED: Layer 1 and required Layer 2 gates\n'
+printf 'PASSED: Layer 1, Docker Layer 2, and Podman smoke gates\n'

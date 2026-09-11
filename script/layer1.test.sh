@@ -6,6 +6,7 @@ root_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$root_dir"
 
 bash script/start.test.sh
+bash script/container-engine.test.sh
 bash script/interactive-login.test.sh
 bash script/lock-artifact.test.sh
 bash script/initialize-and-start.test.sh

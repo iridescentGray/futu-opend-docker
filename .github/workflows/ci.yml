@@ -81,9 +81,44 @@ jobs:
       - name: Run Layer 2 isolated container smoke
         run: bash script/container_smoke.test.sh
 
+  podman:
+    needs: layer1
+    if: needs.layer1.result == 'success' && needs.layer1.outputs.build_required == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    env:
+      PODMAN_COMPOSE_PROVIDER: podman-compose
+      PODMAN_SMOKE_REQUIRED: "1"
+    steps:
+      - name: Checkout untrusted source without credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+
+      - name: Install Podman Compose provider
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes podman podman-compose
+
+      - name: Report rootless Podman and Compose versions
+        run: |
+          podman version
+          podman compose version
+          podman info --format 'rootless={{.Host.Security.Rootless}} os={{.Host.OS}} arch={{.Host.Arch}}'
+
+      - name: Run rootless Podman build, Compose, and key-volume smoke
+        run: bash script/podman_smoke.test.sh
+
   ci-gate:
     if: always()
-    needs: [layer1, layer2]
+    needs: [layer1, layer2, podman]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -93,10 +128,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Require intended Layer 1 and Layer 2 outcomes
+      - name: Require intended Layer 1, Docker, and Podman outcomes
         env:
           LAYER1_RESULT: ${{ needs.layer1.result }}
           LAYER2_RESULT: ${{ needs.layer2.result }}
+          PODMAN_RESULT: ${{ needs.podman.result }}
           BUILD_REQUIRED: ${{ needs.layer1.outputs.build_required }}
         run: |
           bash script/ci_gate.sh

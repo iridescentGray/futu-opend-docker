@@ -10,6 +10,9 @@ readonly env_file=${FUTU_ENV_FILE:-$root_dir/.env}
 readonly compose_file=${FUTU_COMPOSE_FILE:-$root_dir/docker-compose.yaml}
 key_path=${LOCAL_RSA_FILE_PATH:-$root_dir/futu.pem}
 
+# shellcheck source=script/container-engine.sh
+source "$root_dir/script/container-engine.sh"
+
 die() {
   printf 'ERROR: %s\n' "$1" >&2
   exit "${2:-1}"
@@ -47,7 +50,7 @@ if [[ $key_path != /* ]]; then
   key_path=$root_dir/${key_path#./}
 fi
 
-command -v docker >/dev/null 2>&1 || die 'docker is required' 69
+resolve_container_engine || exit $?
 command -v openssl >/dev/null 2>&1 || die 'openssl is required' 69
 command -v expect >/dev/null 2>&1 ||
   die 'expect is required for the simplified interactive login' 69
@@ -80,7 +83,7 @@ unset variable_value variable_name
 
 bash "$root_dir/script/lock-artifact.sh" "$env_file"
 
-compose=(docker compose --env-file "$env_file" -f "$compose_file")
+compose=("${compose_cmd[@]}" --env-file "$env_file" -f "$compose_file")
 
 # Validate interpolation before creating a key or stopping an existing service.
 env -u FUTU_OPEND_SHA256 LOCAL_RSA_FILE_PATH="$key_path" \
@@ -116,6 +119,12 @@ env -u FUTU_OPEND_SHA256 LOCAL_RSA_FILE_PATH="$key_path" \
   "${compose[@]}" down ||
   die 'could not stop the existing service; interactive login was not started'
 
+# Do not depend on provider-specific depends_on condition handling. A failed
+# key initializer must stop the flow before OpenD is created.
+env -u FUTU_OPEND_SHA256 LOCAL_RSA_FILE_PATH="$key_path" \
+  "${compose[@]}" run --rm --no-deps futu-key-init ||
+  die 'RSA key initialization failed; OpenD was not started'
+
 if [[ -n $login_password ]]; then
   password_message='The password is read from FUTU_LOGIN_PASSWORD and submitted once.'
 else
@@ -140,7 +149,7 @@ set +e
 FUTU_EXPECT_ACCOUNT="$account_id" FUTU_EXPECT_PASSWORD="$login_password" \
   expect "$root_dir/script/interactive-login.exp" \
   env -u FUTU_OPEND_SHA256 LOCAL_RSA_FILE_PATH="$key_path" \
-  "${compose[@]}" run --rm --interactive --service-ports \
+  "${compose[@]}" run --rm --no-deps --interactive --service-ports \
   -e FUTU_LOGIN_MODE=interactive futu-opend
 interactive_status=$?
 set -e
@@ -155,4 +164,4 @@ fi
 
 printf '%s\n' \
   'The foreground interactive OpenD session has ended.' \
-  'A later routine start can use docker compose up -d with the remembered state.'
+  "A later routine start can use $container_engine compose with the remembered state."
