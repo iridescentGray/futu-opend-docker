@@ -37,6 +37,10 @@ Coverage includes:
   child exit status, shared-state locking, and SIGTERM delivery through `exec`;
 - unified initialization ordering, protected missing-key generation,
   service-port publication, one foreground OpenD process, and exit propagation;
+- fake-OpenD Expect behavior for configured-account fill, optional one-time
+  environment-password submission, automatic `Y`, bare six-digit phone-code
+  expansion, rejected-password no-retry, missing-account failure, child-env
+  removal and password-output redaction;
 - fake-download TOFU candidate handling, automatic atomic mode-`0600` `.env`
   update, download failure without file changes, and existing-lock reuse;
 - XML escaping, login-field absence, optional Telnet/WebSocket omission,
@@ -47,10 +51,14 @@ Coverage includes:
   inputs, SHA mismatch, invalid archive paths/content, atomic preservation, and
   TOFU-report isolation;
 - bridge/host effective Compose models, custom API port propagation to the
-  runtime environment, loopback client endpoint, and configuration-aware health
-  command;
+  runtime environment, loopback client endpoint, configuration-aware health
+  command, and exclusion of the wrapper-only password from container config;
+- source-free release contents, archive checksum, GHCR registry-digest pin,
+  image-only Compose, launcher start/stop arguments, volume preservation, and
+  rejection of unpinned image references;
 - Action SHA pins, PR permissions, exact skip/gate rules, publish ordering, and
-  review-only version automation;
+  tag-only release ordering, source-free bundle creation, and review-only
+  version automation;
 - Layer 3 default skip, encryption enablement before client creation, configured
   custom client port, redaction, separate quote/trade conditions, timeouts, and
   SDK-context cleanup using a fake module.

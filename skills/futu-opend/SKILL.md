@@ -14,12 +14,17 @@ Docker Compose. Read `AGENTS.md`, `README.md`, `docs/deployment.md`, and
 
 ## Non-negotiable login boundary
 
-- Never request, retrieve, hash, enter, output, or transmit a real password,
+- Agents must never request, retrieve, hash, enter, output, or transmit a real password,
   password MD5, verification code, private key, or login-cache content.
 - Never use a password manager or account connector to find credentials.
 - Never run a real OpenD login. The user alone performs interactive login and
   verification in a private local terminal.
-- Never automate prompts with `expect`, Telnet, file drops, or similar input.
+- The reviewed host-side `interactive-login.exp` may prefill the configured
+  account, submit wrapper-only `FUTU_LOGIN_PASSWORD` once, answer the remember
+  choice with `Y`, and expand a user-entered bare six-digit phone code. Agents
+  never read or supply the password. It must not put the value in Docker/OpenD
+  argv, environment, XML, or logs. Telnet and file-drop automation remain
+  prohibited.
 - Never clear, rename, migrate, or inspect the contents of the
   `futu-opend-data` volume as a login-recovery action.
 - Never run `docker compose down -v` or global Docker cleanup.
@@ -45,12 +50,28 @@ Official sources:
 
 ## Safe Compose guidance
 
+For normal consumers, prefer the source-free release bundle. It contains a
+digest-pinned image-only `compose.yaml`, `env.example`, the login proxy, and a
+small `futu-opend` launcher. After the user copies `env.example` to `.env` and
+configures it, use `./futu-opend init` for the user-only first login or
+reauthentication and `./futu-opend start` for later remembered background
+startup. `stop`, `status`, and `logs` are also available. The bundle never
+builds locally and its stop command preserves both named volumes.
+
+Do not tell a release-bundle consumer to run the source-tree scripts below.
+Those remain the maintainer/developer path.
+
 For first initialization or reauthentication, tell the user to run
 `bash script/initialize-and-start.sh` in a private terminal. This single user
 command safely prepares a missing key, stops the routine service without `-v`,
 runs one `interactive` container with service ports in the foreground, and
 keeps that same OpenD process as the API service after official login. It does
 not start a second container or infer login success from an exit code or file.
+The host-side Expect proxy fills the configured account and `Y`, optionally
+submits a non-empty local `FUTU_LOGIN_PASSWORD` once, and accepts a bare
+six-digit phone code only after the official command hint. Empty/unset password
+configuration preserves direct terminal input. Authentication transcripts must
+not be recorded.
 
 If `FUTU_OPEND_SHA256` is empty, the same command invokes
 `script/lock-artifact.sh`: it downloads only a temporary copy from the fixed

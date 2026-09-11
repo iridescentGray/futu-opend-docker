@@ -6,3 +6,5 @@ futu.pem
 .env.e2e
 __pycache__/
 *.pyc
+.venv/
+dist/

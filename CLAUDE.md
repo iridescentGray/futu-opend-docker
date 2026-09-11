@@ -15,7 +15,8 @@ OpenD 10.10.7008.
   `-area_code`, and `-login_by_remember=1` arguments.
 - Account/password fields must not exist in XML. Legacy password environment
   variables are rejected and must never be retrieved or transformed by an
-  agent.
+  agent. The user may configure wrapper-only `FUTU_LOGIN_PASSWORD` locally;
+  agents never read or supply its value.
 - Both modes use the same `futu` user, `/home/futu` HOME, and unchanged
   `futu-opend-data` volume. Never run them simultaneously and never clear the
   volume as automatic recovery.
@@ -26,8 +27,11 @@ user because they can enter the real login and verification flow.
 The supported first-login and reauthentication entry point is one user command,
 `bash script/initialize-and-start.sh`. It automatically records a missing local
 TOFU digest, prepares the key and runs one port-published interactive OpenD in
-the foreground. Agents never enter the official account, password or
-verification prompts.
+the foreground through `interactive-login.exp`. The proxy fills only the
+configured account and `Y`, and expands a user-entered bare six-digit phone
+code. It may submit wrapper-only `FUTU_LOGIN_PASSWORD` once; the password is
+removed before Docker/OpenD is spawned and must never be printed, copied into
+XML, or supplied by an agent.
 
 ## Safe development commands
 
@@ -50,6 +54,7 @@ npm run test:unit
 # Shell syntax only
 bash -n script/start.sh script/start.test.sh \
   script/initialize-and-start.sh script/initialize-and-start.test.sh \
+  script/interactive-login.test.sh \
   script/lock-artifact.sh script/lock-artifact.test.sh \
   script/download_futu_opend.sh script/download_futu_opend.test.sh
 

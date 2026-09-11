@@ -27,6 +27,7 @@ chmod 0600 "$FAKE_KEY"
 cat >"$BASE_ENV" <<EOF
 FUTU_LOGIN_MODE=remember
 FUTU_ACCOUNT_ID=fake-compose-account
+FUTU_LOGIN_PASSWORD=FAKE_COMPOSE_PASSWORD_MUST_NOT_LEAK
 FUTU_OPEND_IP=0.0.0.0
 FUTU_OPEND_HOST_IP=127.0.0.1
 FUTU_OPEND_RSA_FILE_PATH=/.futu/futu.pem
@@ -75,6 +76,17 @@ import json
 import sys
 
 bridge, host, empty, custom = [json.load(open(path, encoding='utf-8')) for path in sys.argv[1:]]
+password_canary = 'FAKE_COMPOSE_PASSWORD_MUST_NOT_LEAK'
+
+for model in (bridge, host, empty, custom):
+    rendered = json.dumps(model, sort_keys=True)
+    assert password_canary not in rendered
+    for candidate in model['services'].values():
+        raw_env = candidate.get('environment', {})
+        if isinstance(raw_env, dict):
+            assert 'FUTU_LOGIN_PASSWORD' not in raw_env
+        else:
+            assert not any(item.startswith('FUTU_LOGIN_PASSWORD=') for item in raw_env)
 
 
 def service(model, name='futu-opend'):
@@ -152,5 +164,6 @@ print('ok 4 - both complete files resolve the same state and key volume names')
 print('ok 5 - key preparation is isolated and the runtime key mount is read-only')
 print('ok 6 - unset and empty optional listener ports both remain disabled')
 print('ok 7 - custom API port aligns runtime config, health validation, and loopback client endpoint')
-print('1..7')
+print('ok 8 - wrapper-only login password is absent from rendered container configuration')
+print('1..8')
 PY

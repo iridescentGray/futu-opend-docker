@@ -2,6 +2,7 @@
   "scripts": {
     "test:build-config": "bash script/build_config.test.sh",
     "test:initialize": "bash script/initialize-and-start.test.sh",
+    "test:interactive-login": "bash script/interactive-login.test.sh",
     "test:artifact-lock": "bash script/lock-artifact.test.sh",
     "test:compose": "bash script/compose.test.sh",
     "test:ci-config": "bash script/ci_config.test.sh",
@@ -10,6 +11,7 @@
     "test:key-init": "bash script/init-key.test.sh",
     "test:layer1": "npm run test:unit && bash script/layer1.test.sh",
     "test:live": "python3 script/live_readonly.py",
+    "test:release-bundle": "bash script/release_bundle.test.sh",
     "test:offline": "bash script/layer1.test.sh",
     "test:smoke": "bash script/container_smoke.test.sh",
     "test:startup": "bash script/start.test.sh",

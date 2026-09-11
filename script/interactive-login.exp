@@ -1,0 +1,128 @@
+#!/usr/bin/expect -f
+
+# Convenience proxy for the user-run OpenD login only. It intentionally does
+# not source files or write a transcript. The caller may provide one password
+# through FUTU_EXPECT_PASSWORD and is responsible for terminal echo handling.
+log_user 1
+exp_internal 0
+set timeout -1
+match_max 65536
+
+proc wait_for_remember_prompt {} {
+  interact -o -re {请选择是否记住密码} return
+}
+
+proc wait_for_phone_code_prompt {} {
+  set requested 0
+  interact -o -re {命令提示:[^\r\n]*input_phone_verify_code[[:space:]]+-code=} {
+    set requested 1
+    return
+  }
+  return $requested
+}
+
+if {![info exists env(FUTU_EXPECT_ACCOUNT)] || $env(FUTU_EXPECT_ACCOUNT) eq ""} {
+  send_error "ERROR: FUTU_EXPECT_ACCOUNT is required\n"
+  exit 64
+}
+if {[regexp {[\r\n]} $env(FUTU_EXPECT_ACCOUNT)]} {
+  send_error "ERROR: FUTU_EXPECT_ACCOUNT must not contain line breaks\n"
+  exit 64
+}
+if {[llength $argv] == 0} {
+  send_error "ERROR: an OpenD launch command is required\n"
+  exit 64
+}
+
+set password_supplied 0
+set login_password ""
+if {[info exists env(FUTU_EXPECT_PASSWORD)] && $env(FUTU_EXPECT_PASSWORD) ne ""} {
+  if {[regexp {[\r\n]} $env(FUTU_EXPECT_PASSWORD)]} {
+    send_error "ERROR: FUTU_EXPECT_PASSWORD must not contain line breaks\n"
+    exit 64
+  }
+  set password_supplied 1
+  set login_password $env(FUTU_EXPECT_PASSWORD)
+}
+# Do not expose the wrapper-only secret to the spawned Docker/OpenD process.
+catch {unset env(FUTU_EXPECT_PASSWORD)}
+
+spawn -noecho {*}$argv
+fconfigure $spawn_id -encoding utf-8
+
+# Fill only the configured account.
+expect {
+  -re {请输入账号} {
+    send -- "$env(FUTU_EXPECT_ACCOUNT)\r"
+  }
+  eof {
+    exit 1
+  }
+}
+
+# With no configured password, input continues to pass directly between the
+# user's terminal and OpenD. A configured password is submitted exactly once.
+if {$password_supplied} {
+  expect {
+    -re {请输入密码} {
+      # Do not trust the child PTY to disable echo before it prints the prompt.
+      # Suppress forwarding until the next recognized prompt consumes any echo.
+      log_user 0
+      send -- "$login_password\r"
+      set login_password ""
+      unset login_password
+    }
+    eof {
+      exit 1
+    }
+  }
+  expect {
+    -re {请选择是否记住密码} {
+      log_user 1
+    }
+    -re {请输入密码} {
+      log_user 1
+      send_error "\r\nERROR: FUTU_LOGIN_PASSWORD was not accepted; automatic retry is disabled\n"
+      close
+      catch {wait}
+      exit 77
+    }
+    eof {
+      exit 1
+    }
+  }
+} else {
+  wait_for_remember_prompt
+}
+send -- "Y\r"
+
+# Normal console input passes through. Only after OpenD prints its documented
+# phone-code hint do we read a bare six-digit code and expand it.
+set proxy_running 1
+while {$proxy_running} {
+  if {[wait_for_phone_code_prompt]} {
+    send_user "\r\n请输入 6 位手机验证码: "
+    set verification_code ""
+    expect_user {
+      -re {([0-9]{6})[\r\n]} {
+        set verification_code $expect_out(1,string)
+      }
+      eof {
+        send_error "\r\nERROR: verification-code input ended unexpectedly\n"
+        exit 74
+      }
+    }
+    send_user "\r\n"
+    send -- "input_phone_verify_code -code=$verification_code\r"
+    set verification_code ""
+    unset verification_code
+  } else {
+    set proxy_running 0
+  }
+}
+
+set child_status 1
+if {![catch {wait} wait_result]} {
+  set child_status [lindex $wait_result 3]
+}
+exit $child_status

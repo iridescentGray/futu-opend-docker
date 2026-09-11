@@ -15,8 +15,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-    env:
-      IMAGE_NAME: ghcr.io/${{ github.repository }}
     steps:
       - name: Checkout trusted source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -44,6 +42,7 @@ jobs:
             echo 'Invalid stable OpenD version' >&2
             exit 1
           fi
+          IMAGE_NAME=$(printf '%s' "ghcr.io/${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
           echo "SMOKE_IMAGE=${IMAGE_NAME}:ubuntu-${VERSION}" >>"$GITHUB_ENV"
 
       - name: Run Layer 2 against the exact image to publish

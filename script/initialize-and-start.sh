@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -Eeuo pipefail
+set +x
 umask 077
 
 readonly root_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
@@ -22,10 +23,23 @@ file_mode() {
   fi
 }
 
+read_env_value() {
+  local name=$1
+  awk -F= -v wanted="$name" '
+    $1 == wanted { value = substr($0, index($0, "=") + 1) }
+    END { print value }
+  ' "$env_file"
+}
+
 [[ -t 0 && -t 1 ]] ||
   die 'initialization requires a private stdin/stdout TTY' 64
-[[ -f "$env_file" ]] || die "environment file not found: $env_file" 66
+[[ -f "$env_file" && ! -L "$env_file" ]] ||
+  die "environment file must be a regular file, not a symlink: $env_file" 66
 [[ -f "$compose_file" ]] || die "Compose file not found: $compose_file" 66
+if [[ $(file_mode "$env_file") != 600 ]]; then
+  chmod 0600 "$env_file" ||
+    die 'unable to restrict the environment file to mode 0600' 77
+fi
 [[ "$key_path" != *$'\n'* && "$key_path" != *$'\r'* ]] ||
   die 'LOCAL_RSA_FILE_PATH must not contain line breaks' 64
 if [[ "$key_path" != /* ]]; then
@@ -34,6 +48,34 @@ fi
 
 command -v docker >/dev/null 2>&1 || die 'docker is required' 69
 command -v openssl >/dev/null 2>&1 || die 'openssl is required' 69
+command -v expect >/dev/null 2>&1 ||
+  die 'expect is required for the simplified interactive login' 69
+
+account_id=${FUTU_ACCOUNT_ID-}
+login_password=${FUTU_LOGIN_PASSWORD-}
+unset FUTU_LOGIN_PASSWORD
+if [[ -z $account_id ]]; then
+  account_id=$(read_env_value FUTU_ACCOUNT_ID)
+fi
+if [[ -z $login_password ]]; then
+  login_password=$(read_env_value FUTU_LOGIN_PASSWORD)
+fi
+account_id=${account_id%$'\r'}
+login_password=${login_password%$'\r'}
+for variable_name in account_id login_password; do
+  variable_value=${!variable_name}
+  if [[ $variable_value == \"*\" && $variable_value == *\" ]]; then
+    printf -v "$variable_name" '%s' "${variable_value:1:${#variable_value}-2}"
+  elif [[ $variable_value == \'*\' && $variable_value == *\' ]]; then
+    printf -v "$variable_name" '%s' "${variable_value:1:${#variable_value}-2}"
+  fi
+done
+variable_value=''
+unset variable_value variable_name
+[[ -n $account_id && $account_id != *$'\n'* && $account_id != *$'\r'* ]] ||
+  die 'FUTU_ACCOUNT_ID must be configured for interactive login' 64
+[[ $login_password != *$'\n'* && $login_password != *$'\r'* ]] ||
+  die 'FUTU_LOGIN_PASSWORD must not contain line breaks' 64
 
 bash "$root_dir/script/lock-artifact.sh" "$env_file"
 
@@ -73,17 +115,38 @@ env -u FUTU_OPEND_SHA256 LOCAL_RSA_FILE_PATH="$key_path" \
   "${compose[@]}" down ||
   die 'could not stop the existing service; interactive login was not started'
 
+if [[ -n $login_password ]]; then
+  password_message='The password is read from FUTU_LOGIN_PASSWORD and submitted once.'
+else
+  password_message='Enter the password yourself; FUTU_LOGIN_PASSWORD is unset or empty.'
+fi
 printf '%s\n' \
   'Starting the official interactive OpenD login.' \
-  'Complete the official account, password, remember-password, and verification prompts yourself.' \
+  'The configured account and remember-password choice Y are filled automatically.' \
+  "$password_message" \
+  'When prompted for phone verification, enter only the 6 digits.' \
   'After login, this foreground OpenD process is the active API service.'
 
+tty_state=$(stty -g) || die 'unable to read terminal settings' 74
+restore_tty() {
+  stty "$tty_state" 2>/dev/null || true
+}
+trap restore_tty EXIT
+trap 'restore_tty; trap - EXIT; exit 130' HUP INT TERM
+stty -echo || die 'unable to disable local terminal echo' 74
+
 set +e
-env -u FUTU_OPEND_SHA256 LOCAL_RSA_FILE_PATH="$key_path" \
+FUTU_EXPECT_ACCOUNT="$account_id" FUTU_EXPECT_PASSWORD="$login_password" \
+  expect "$root_dir/script/interactive-login.exp" \
+  env -u FUTU_OPEND_SHA256 LOCAL_RSA_FILE_PATH="$key_path" \
   "${compose[@]}" run --rm --interactive --service-ports \
   -e FUTU_LOGIN_MODE=interactive futu-opend
 interactive_status=$?
 set -e
+login_password=''
+unset login_password
+restore_tty
+trap - EXIT HUP INT TERM
 
 if (( interactive_status != 0 )); then
   die "interactive OpenD exited with status $interactive_status" "$interactive_status"

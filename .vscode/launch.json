@@ -1,0 +1,54 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Futu: 搜索新闻",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/examples/futu-news-demo/news_demo.py",
+      "python": "${workspaceFolder}/examples/futu-news-demo/.venv/bin/python",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "preLaunchTask": "uv: sync futu-news-demo",
+      "args": [
+        "${input:futuNewsKeyword}",
+        "--count",
+        "${input:futuNewsCount}",
+        "--type",
+        "${input:futuNewsType}"
+      ],
+      "env": {
+        "FUTU_OPEND_HOST": "127.0.0.1",
+        "FUTU_OPEND_PORT": "11111",
+        "FUTU_OPEND_RSA_FILE_PATH": "${workspaceFolder}/futu.pem"
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "futuNewsKeyword",
+      "type": "promptString",
+      "description": "新闻搜索关键词",
+      "default": "腾讯"
+    },
+    {
+      "id": "futuNewsCount",
+      "type": "promptString",
+      "description": "最多返回条数",
+      "default": "10"
+    },
+    {
+      "id": "futuNewsType",
+      "type": "pickString",
+      "description": "资讯类型",
+      "options": [
+        "news",
+        "all",
+        "notice",
+        "rating"
+      ],
+      "default": "news"
+    }
+  ]
+}

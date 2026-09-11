@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "uv: sync futu-news-demo",
+      "type": "process",
+      "command": "uv",
+      "args": [
+        "sync",
+        "--project",
+        "${workspaceFolder}/examples/futu-news-demo",
+        "--locked"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared",
+        "clear": false
+      }
+    }
+  ]
+}

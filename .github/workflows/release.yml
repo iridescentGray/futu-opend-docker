@@ -1,0 +1,88 @@
+name: Release image and operator bundle
+
+on:
+  push:
+    tags:
+      - "v*-r*"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install locked test dependencies
+        run: npm ci
+
+      - name: Validate immutable release tag
+        run: |
+          set -euo pipefail
+          OPEND_VERSION=$(node -e "process.stdout.write(require('./opend_version.json').stableVersion)")
+          if ! [[ "$GITHUB_REF_NAME" =~ ^v${OPEND_VERSION}-r[1-9][0-9]*$ ]]; then
+            echo "Release tag must look like v${OPEND_VERSION}-r1" >&2
+            exit 1
+          fi
+          RELEASE_VERSION=${GITHUB_REF_NAME#v}
+          IMAGE_NAME=$(printf '%s' "ghcr.io/${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
+          echo "RELEASE_VERSION=$RELEASE_VERSION" >>"$GITHUB_ENV"
+          echo "SMOKE_IMAGE=${IMAGE_NAME}:ubuntu-${RELEASE_VERSION}" >>"$GITHUB_ENV"
+
+      - name: Run Layer 1
+        run: npm run test:layer1
+
+      - name: Report Layer 3 default status
+        run: npm run test:live
+
+      - name: Run Layer 2 against the exact image to publish
+        run: npm run test:smoke
+        env:
+          SMOKE_KEEP_IMAGE: "1"
+
+      - name: Authenticate to GHCR after all test gates
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      - name: Push the immutable release image
+        run: docker push "$SMOKE_IMAGE"
+
+      - name: Resolve the published registry digest
+        run: |
+          set -euo pipefail
+          IMAGE_REF=$(docker image inspect --format '{{index .RepoDigests 0}}' "$SMOKE_IMAGE")
+          if ! [[ "$IMAGE_REF" =~ ^ghcr\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$ ]]; then
+            echo 'Published image did not resolve to a GHCR sha256 digest' >&2
+            exit 1
+          fi
+          echo "IMAGE_REF=$IMAGE_REF" >>"$GITHUB_ENV"
+
+      - name: Build the source-free operator bundle
+        run: bash script/build-release-bundle.sh "$RELEASE_VERSION" "$IMAGE_REF" dist
+
+      - name: Publish immutable GitHub Release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            "dist/futu-opend-${RELEASE_VERSION}-linux-amd64.tar.gz" \
+            "dist/futu-opend-${RELEASE_VERSION}-linux-amd64.tar.gz.sha256" \
+            --verify-tag \
+            --title "Futu OpenD ${RELEASE_VERSION}" \
+            --generate-notes

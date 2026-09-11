@@ -12,6 +12,37 @@
 - 兼容网络：独立的 `docker-compose.host.yaml`，不得与默认文件叠加。
 - 非主要目标：ARM、macOS、Kubernetes、多实例和业务功能扩展。
 
+## 面向使用者的发行包
+
+正式使用路径是版本化、无源码的 Linux/amd64 发行包。包内只有
+`compose.yaml`、`env.example`、`futu-opend` 管理命令、受限登录代理和简短
+说明；不包含 Dockerfile、构建上下文或测试。两个 Compose 服务使用同一个
+GHCR 镜像，并固定到发布后得到的 registry SHA-256 digest，因此用户机器不
+下载 OpenD 安装包，也不执行本地镜像构建。
+
+发行包命令：
+
+```bash
+cp env.example .env
+chmod 0600 .env
+# 编辑 .env
+./futu-opend init     # 首次登录或重新认证；前台服务
+./futu-opend start    # 后续 remembered 后台启动
+./futu-opend status
+./futu-opend logs
+./futu-opend stop     # 保留密钥卷和登录状态卷
+```
+
+`init` 和 `start` 代表 OpenD 的两种官方登录生命周期，不应在首次登录时连续
+执行。`init` 登录成功后的同一个前台进程已经是 API 服务；只有该会话结束或
+主机重启后，才使用 `start` 从命名卷中的 remembered 状态后台启动。
+
+推送符合 `v<OpenD版本>-r<发行修订>` 的标签（例如
+`v10.10.7008-r1`）会触发发行工作流。工作流依次运行 Layer 1、对待发布镜像
+运行 Layer 2、推送不可变修订标签、解析 registry digest、生成发行包及其
+SHA-256 文件，最后创建同名 GitHub Release。实际发布仍要求
+`opend_version.json` 中存在已审查的 OpenD 产物锁。
+
 ## 构建版本与产物锁定
 
 当前维护的构建路径只有基于 Ubuntu、名为 `runtime` 的 `linux/amd64`
@@ -85,8 +116,25 @@ docker image inspect --format '{{index .RepoDigests 0}}' \
   `-area_code` 和 `-login_by_remember=1`。
 
 OpenD 10.10.7008 已从 XML 中移除账号和密码配置。旧变量
-`FUTU_ACCOUNT_PWD`、`FUTU_ACCOUNT_PWD_MD5` 会被拒绝，包装脚本不会自动
-输入密码或验证码。
+`FUTU_ACCOUNT_PWD`、`FUTU_ACCOUNT_PWD_MD5` 会被拒绝。本项目另行定义了仅
+供宿主机登录包装器使用的 `FUTU_LOGIN_PASSWORD`：非空时 Expect 代理在官方
+密码提示后提交一次，空值或未设置时由用户在终端输入。该变量不是 OpenD 原生
+配置，不写入 XML、不进入 OpenD 参数或容器环境。代理同时预填账号、自动选择
+记住密码 `Y`，并在官方手机验证码命令提示后转换用户输入的裸 6 位数字；它
+不启用 Telnet，也不写会话 transcript。
+
+密码可以写入本地、已忽略的 `.env`：
+
+```dotenv
+FUTU_LOGIN_PASSWORD='仅保存在本机的密码'
+```
+
+外层成对的单引号或双引号会被移除，内部字符原样提交；不允许换行。也可只在
+当前 shell 导出同名变量，shell 环境优先于 `.env`。将密码放入环境变量或
+`.env` 会扩大本地暴露面：同 UID 进程检查、错误的备份/同步设置或文件权限
+都可能泄露密码。`.env` 必须保持未跟踪；初始化脚本会在读取登录配置前将其
+权限限制为 `0600`。不要在共享终端运行或启用 shell xtrace。包装器会关闭
+自身 xtrace，不会打印密码，并在启动 Expect 前从自身环境删除该变量。
 
 官方参考：
 
@@ -137,12 +185,23 @@ bash script/initialize-and-start.sh
 4. 停止日常服务但保留密钥卷和 `futu-opend-data` 状态卷。
 5. 以相同 `futu` 用户、`/home/futu` HOME 和状态卷启动交互 OpenD，并发布
    Compose 服务端口。
-6. 用户亲自完成密码、验证码及“记住密码”选择。
+6. Expect 代理从 shell 环境或 `.env` 预填账号；非空
+   `FUTU_LOGIN_PASSWORD` 会在官方密码提示后自动提交一次，未设置时用户亲自
+   输入密码。代理自动选择记住密码 `Y`。出现官方手机验证码命令提示时，用户
+   只输入 6 位数字，由代理转换为完整命令。
 7. 登录成功后，当前前台 OpenD 进程立即作为 API 服务使用。
 
 项目不根据退出码、目录或包装层锁文件宣称登录成功，也不会启动第二个 OpenD
 容器。首次服务保持前台运行，因此没有日常服务的自动重启策略；该会话结束后，
 以后再使用下面的 remembered 后台启动命令。
+
+Expect 是宿主机依赖，不会安装进运行镜像。登录期间外层脚本关闭本地键盘
+回显并在退出时恢复。包装器通过 Expect 专用环境变量短暂传递密码，Expect
+读取后立即删除该变量，再启动 Docker/OpenD；密码不进入 Docker/OpenD 的
+argv、环境变量或 XML。错误密码只自动提交一次，再次出现密码提示时以状态
+`77` 停止，不会无限重试。但 OpenD 可能回显展开后的验证码运维命令，因此
+认证期间不得录制终端或上传原始输出。图形验证码及未知的新提示不会被自动
+处理。
 
 日常启动和日志：
 

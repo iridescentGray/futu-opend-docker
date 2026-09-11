@@ -20,6 +20,17 @@ set -eu
 } >>"${FAKE_DOCKER_LOG:?}"
 for argument in "$@"; do
   if [[ $argument == run ]]; then
+    printf '请输入账号\n>>> '
+    IFS= read -r account
+    printf '请输入密码\n>>> '
+    IFS= read -rs password
+    printf '%s' "$password" >"${FAKE_RECEIVED_PASSWORD_FILE:?}"
+    if [[ -n ${FUTU_LOGIN_PASSWORD-} || -n ${FUTU_EXPECT_PASSWORD-} ]]; then
+      printf 'password leaked into fake Docker/OpenD environment\n' >&2
+      exit 90
+    fi
+    printf '\n请选择是否记住密码（Y代表记住，N代表不记住）\n>>> '
+    IFS= read -r remember
     exit "${FAKE_INTERACTIVE_STATUS:-0}"
   fi
 done
@@ -76,7 +87,10 @@ mode_of() {
 }
 
 env_file=$test_root/test.env
+password_canary='FAKE_INITIALIZE_ENV_PASSWORD_$[]{}!#=MUST_NOT_LEAK'
 printf '%s\n' \
+  'FUTU_ACCOUNT_ID=fake-initialize-account' \
+  "FUTU_LOGIN_PASSWORD='$password_canary'" \
   'FUTU_OPEND_VER=10.10.7008' \
   'FUTU_OPEND_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' \
   >"$env_file"
@@ -87,6 +101,7 @@ success_log=$success_dir/docker.log
 success_key=$success_dir/futu.pem
 if PATH="$fake_bin:$PATH" \
   FAKE_DOCKER_LOG="$success_log" \
+  FAKE_RECEIVED_PASSWORD_FILE="$success_dir/received-password" \
   FUTU_ENV_FILE="$env_file" \
   FUTU_COMPOSE_FILE="$root_dir/docker-compose.yaml" \
   LOCAL_RSA_FILE_PATH="$success_key" \
@@ -96,6 +111,7 @@ else
   printf 'not ok 1 - unified initialization succeeded\n' >&2
   exit 1
 fi
+[[ $(mode_of "$env_file") == 600 ]]
 
 python3 - "$success_log" <<'PY'
 import sys
@@ -110,7 +126,13 @@ assert '--service-ports' in calls[2], calls[2]
 assert 'FUTU_LOGIN_MODE=interactive' in calls[2], calls[2]
 PY
 grep -Fq 'foreground OpenD process is the active API service' "$success_dir/output"
-printf 'ok 1 - one command generates a protected key and runs the port-published interactive service\n'
+[[ $(<"$success_dir/received-password") == "$password_canary" ]]
+if grep -Fq "$password_canary" "$success_dir/output" || \
+  grep -Fq "$password_canary" "$success_log"; then
+  printf 'not ok 1 - unified initialization output contains the fake password\n' >&2
+  exit 1
+fi
+printf 'ok 1 - one command protects the env/key and runs the port-published interactive service\n'
 
 [[ $(grep -c '^CALL$' "$success_log") == 3 ]]
 printf 'ok 2 - a clean interactive exit does not launch a second OpenD container\n'
@@ -118,12 +140,15 @@ printf 'ok 2 - a clean interactive exit does not launch a second OpenD container
 failure_dir=$test_root/failure
 mkdir "$failure_dir"
 failure_key=$failure_dir/futu.pem
+override_password_canary='FAKE_SHELL_ENV_PASSWORD_!$[]{}#=MUST_NOT_LEAK'
 printf 'existing test key\n' >"$failure_key"
 chmod 0600 "$failure_key"
 set +e
 PATH="$fake_bin:$PATH" \
   FAKE_DOCKER_LOG="$failure_dir/docker.log" \
+  FAKE_RECEIVED_PASSWORD_FILE="$failure_dir/received-password" \
   FAKE_INTERACTIVE_STATUS=23 \
+  FUTU_LOGIN_PASSWORD="$override_password_canary" \
   FUTU_ENV_FILE="$env_file" \
   FUTU_COMPOSE_FILE="$root_dir/docker-compose.yaml" \
   LOCAL_RSA_FILE_PATH="$failure_key" \
@@ -131,8 +156,14 @@ PATH="$fake_bin:$PATH" \
 failure_status=$?
 set -e
 [[ $failure_status == 23 ]]
+[[ $(<"$failure_dir/received-password") == "$override_password_canary" ]]
 [[ $(grep -c '^CALL$' "$failure_dir/docker.log") == 3 ]]
 grep -Fq 'interactive OpenD exited with status 23' "$failure_dir/output"
+if grep -Fq "$override_password_canary" "$failure_dir/output" || \
+  grep -Fq "$override_password_canary" "$failure_dir/docker.log"; then
+  printf 'not ok 3 - shell environment password leaked to output or Docker argv\n' >&2
+  exit 1
+fi
 printf 'ok 3 - interactive OpenD failure is propagated without a second container\n'
 
 printf '1..3\n'

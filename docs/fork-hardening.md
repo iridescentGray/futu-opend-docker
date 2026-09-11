@@ -378,13 +378,23 @@ configuration file. This conflict is recorded rather than silently resolved.
 - [x] Phase 4 — layered tests and CI isolation: deterministic unit/config tests,
   unique no-credential container resources, strict aggregate gates, and an
   explicit user-only encrypted read-only protocol check.
-- [ ] Phase 5 — documentation reconciliation and final acceptance matrix:
+- [x] Phase 5 — documentation reconciliation and final acceptance matrix:
   remove stale claims, preserve upstream attribution, and report every target
   check as PASSED, FAILED, SKIPPED, or NOT RUN.
+- [x] Phase 6 — concise Chinese README with detailed deployment material routed
+  to `docs/`.
+- [x] Phases 7–9 — iteration history for the local artifact lock, unified
+  foreground initialization and scoped Expect proxy; superseded designs remain
+  labeled as such below.
+- [x] Phase 10 — optional wrapper-only environment password, single submission,
+  no automatic retry, fake-secret redaction tests and synchronized docs.
+- [x] Phase 11 — source-free release bundle, digest-pinned image-only Compose,
+  operator launcher, checksum, and immutable tag-triggered release workflow.
 
 The phases deliberately keep login, security configuration, build hardening,
-and test/CI work separate. Phase 5 reconciliation remains next and was not
-started here.
+and test/CI work separate. Target-platform real login, SDK readiness, image
+smoke, state compatibility and long-running behavior remain operator acceptance
+items rather than completed implementation checks.
 
 ## Phase 1 — login adaptation
 
@@ -769,3 +779,94 @@ remembered-state `docker compose up -d` flow.
 | `bash script/initialize-and-start.test.sh` | PASSED | 3 fake-Docker/fake-OpenSSL checks cover `--service-ports`, a single foreground container, key generation, and exit propagation. |
 | Official interactive prompts | NOT RUN | OpenD may still require account, password, remember-password selection or verification; only the user may perform them. |
 | Real API availability after interactive login | NOT RUN | Requires user-run login plus encrypted SDK acceptance. |
+
+## Phase 9 — scoped Expect convenience proxy (superseded by Phase 10)
+
+At the user's explicit request, the blanket prohibition on Expect-style prompt
+assistance was replaced with a narrow reviewed exception. The host-side
+`interactive-login.exp` may only fill the configured account, answer the
+remember-password choice with `Y`, and expand a bare user-entered six-digit
+phone code after OpenD prints its documented command hint. It does not accept a
+password through argv, environment, file or agent input, does not source `.env`,
+does not write a transcript and does not enable Telnet.
+
+`initialize-and-start.sh` reads only `FUTU_ACCOUNT_ID` from the selected env
+file when no shell override exists, disables local terminal echo around the
+Expect process, and restores terminal settings on normal exit or signals. The
+password passes directly between the user's terminal and OpenD. The phone code
+exists briefly in Expect memory to construct the official operation command;
+OpenD may echo that expanded command, so authentication sessions must not be
+recorded or uploaded. Picture verification and unknown future prompts remain
+manual.
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| `bash script/interactive-login.test.sh` | PASSED | 2 fake-OpenD checks prove account fill, automatic `Y`, bare six-digit expansion, missing-account rejection and absence of the fake password from captured output. |
+| `bash script/initialize-and-start.test.sh` | PASSED | The fake Compose login now exercises the Expect wrapper while preserving single-container and exit-status behavior. |
+| `bash script/layer1.test.sh` | PASSED | 82 offline assertions passed after adding the two Expect checks. No real account, password, verification code, OpenD, network download or container was used. |
+| Real 10.10.7008 prompt compatibility | NOT RUN | Chinese prompt matching and actual login remain user-only acceptance. |
+
+## Phase 10 — user-local environment password convenience
+
+At the user's explicit request, the Phase 9 password-source restriction was
+removed. The project now defines wrapper-only `FUTU_LOGIN_PASSWORD`; this is
+not an OpenD-native setting and does not restore the removed XML account or
+password fields. `initialize-and-start.sh` prefers a non-empty shell value and
+otherwise reads the local `.env`; unset or empty keeps the manual password
+path. The local env file is restricted to mode `0600` before login values are
+read.
+
+The wrapper disables xtrace and terminal echo, passes the value only to the
+Expect process, and unsets its original environment variable. Expect copies
+the value into memory, removes it from its environment before spawning
+Docker/OpenD, submits it once at the recognized password prompt, then clears
+the Tcl variable. A second password prompt exits with status `77` rather than
+retrying. The value is not added to Docker/OpenD argv, environment, XML, or
+captured test output. This narrows propagation but does not eliminate the
+inherent local exposure of keeping a password in `.env` or a process
+environment; same-UID inspection, backups, synchronization, or incorrect host
+permissions remain operator risks.
+
+Legacy `FUTU_ACCOUNT_PWD` and `FUTU_ACCOUNT_PWD_MD5` remain rejected because
+they represented removed OpenD configuration, while `FUTU_LOGIN_PASSWORD` is
+only input to the user-run host prompt proxy. No password or verification code
+was supplied to a real OpenD process during this phase.
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| `bash script/interactive-login.test.sh` | PASSED | 4 fake-OpenD checks cover manual/env password paths, special characters, single submission, no retry and output/child-env redaction. |
+| `bash script/initialize-and-start.test.sh` | PASSED | 3 fake-Docker/OpenSSL checks cover `.env` and shell override precedence, mode `0600`, redaction and existing single-container behavior. |
+| `bash script/layer1.test.sh` | PASSED | 85 offline assertions passed; no real account, OpenD, network download or container was used. The Compose model also excludes the fake wrapper password. |
+| `npm run test:offline` | NOT RUN | `npm` is not installed in the current host environment; its underlying `bash script/layer1.test.sh` command was run directly and passed. |
+| Real 10.10.7008 prompt compatibility and login | NOT RUN | Must be performed by the user in a private terminal. |
+
+## Phase 11 — source-free release distribution
+
+The normal consumer path no longer requires a source checkout. A release
+template provides image-only Compose services for key initialization and OpenD,
+plus a small `futu-opend` command that exposes explicit `init`, `start`, `stop`,
+`status`, `logs`, and `reauth` operations. The first interactive process remains
+the active API service after login; routine background startup remains a
+separate remembered-state lifecycle. The launcher never uses `down -v`, never
+inspects the login-state volume, and never passes its optional host-side login
+password into the OpenD container.
+
+`build-release-bundle.sh` accepts only a lowercase GHCR reference pinned by a
+registry SHA-256 digest and produces a Linux/amd64 archive plus checksum. The
+archive contains no Dockerfile, build context, package manifest, or tests. A
+new tag-only workflow accepts immutable tags such as `v10.10.7008-r1`, runs
+Layers 1 and 2 before registry authentication, pushes the exact revision image,
+resolves its registry digest, builds the source-free bundle, and creates the
+GitHub Release. No release, image push, tag, or remote setting was created or
+changed locally.
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| `bash script/release_bundle.test.sh` | PASSED | 3 checks cover digest pinning, source-free contents, checksum, launcher start/stop arguments, secret exclusion, and volume-preserving stop. |
+| Release Compose render | PASSED | Docker Compose accepted a generated bundle using a fake digest and explicit temporary env file; no daemon or image pull was used. |
+| Release workflow YAML parse | PASSED | Ruby parsed the new workflow successfully. |
+| `bash script/ci_config.test.sh` | PASSED | 7 policy checks include tag-only release ordering, permissions, digest resolution, and source-free bundle publication. |
+| `bash script/build_config.test.sh` | PASSED | Existing 5 build/platform/publication assertions remain green. |
+| `git diff --check` | PASSED | No whitespace errors at the phase checkpoint. |
+| Real tagged GitHub Release and GHCR digest | NOT RUN | Requires an approved artifact lock and an explicit remote tag push; neither was performed. |
+| Real login and remembered startup from the bundle | NOT RUN | User-only Linux/amd64 acceptance; no credentials, key, session, or verification code were accessed. |

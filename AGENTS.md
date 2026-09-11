@@ -25,6 +25,7 @@ Docker containerization for Futu OpenD — a trading API gateway for Futu Securi
 ├── docs/
 │   ├── deployment.md       # Detailed build, login, key, network and state-volume guide
 │   └── E2E.md              # Three test layers, proof boundaries, CI and cleanup
+├── release/                # Source-free operator bundle templates; image-only Compose + launcher
 ├── k8s/                    # Reference k8s deployment + harness backend (kind/existing)
 │   ├── README.md           # Deploy + first-run SMS/CAPTCHA via kubectl, plus local-dev kind flow
 │   ├── deployment.yaml     # Single-replica, hostNetwork, init-chown, 0644 RSA, pgrep liveness
@@ -39,9 +40,13 @@ Docker containerization for Futu OpenD — a trading API gateway for Futu Securi
 │       └── references/     # Per-target / per-task detail pulled in on demand
 ├── script/
 │   ├── start.sh            # Entrypoint — validates login mode, renders XML, execs OpenD
+│   ├── build-release-bundle.sh # Creates digest-pinned Linux/amd64 release archive + checksum
+│   ├── release_bundle.test.sh # Offline release contents/launcher regression checks
 │   ├── start.test.sh       # Offline fake-OpenD wrapper tests
 │   ├── initialize-and-start.sh # Automatic local lock/key setup + port-published interactive service
 │   ├── initialize-and-start.test.sh # Fake Docker/OpenSSL orchestration tests
+│   ├── interactive-login.exp # Host-side prompt proxy: account/Y defaults + bare phone code
+│   ├── interactive-login.test.sh # Fake OpenD prompt, redaction and transformation tests
 │   ├── lock-artifact.sh    # Fixed-origin TOFU download and atomic local .env SHA lock
 │   ├── lock-artifact.test.sh # Fake-download artifact-lock tests
 │   ├── init-key.sh         # One-shot root helper: mode-0600 host key → futu-owned mode-0400 key volume
@@ -71,6 +76,9 @@ Docker containerization for Futu OpenD — a trading API gateway for Futu Securi
 | Update config template                 | `FutuOpenD.xml`                                                   | Login-free template with explicit `###FUTU_OPEND_*###` placeholders                                       |
 | Test startup wrapper                   | `script/start.test.sh`                                            | Offline fake OpenD; never proves real login                                                                |
 | Initialize or reauthenticate           | `script/initialize-and-start.sh`                                  | User-only private TTY; current process serves API immediately after official login                        |
+| Build consumer release bundle          | `script/build-release-bundle.sh`, `release/`                       | Produces source-free archive using a registry-digest-pinned GHCR image                                    |
+| Operate from release bundle            | `release/futu-opend`, `release/compose.yaml`                       | `init` for first login; `start` for remembered background startup; no local image build                    |
+| Modify interactive conveniences        | `script/interactive-login.exp`                                    | Wrapper-only env password is single-use; fake OpenD tests required; no Telnet                              |
 | Lock local first-trust artifact        | `script/lock-artifact.sh`                                         | Fixed official HTTPS temp download and atomic `.env` update; TOFU, not publisher authentication          |
 | Test Compose and key preparation       | `script/compose.test.sh`, `script/init-key.test.sh`                | Offline/fake inputs; Compose config only, no daemon                                                        |
 | Version detection                      | `script/check_version.js`                                         | Scraper with retry, timeout, validation                                                                    |
@@ -93,7 +101,8 @@ Docker containerization for Futu OpenD — a trading API gateway for Futu Securi
 - **Multi-stage Docker**: `fetch` downloads the locked Ubuntu 18.04 artifact; `runtime` is both the explicit and default final Linux/amd64 stage. There is no `BASE_IMG` switch or maintained CentOS target.
 - **Non-root OpenD**: The main process runs as `futu`. The isolated `futu-key-init` service runs once as root, with no network and `restart: "no"`, only to copy a read-only mode-`0600` host key into the key volume as the actual `futu` UID/GID and mode `0400`.
 - **Login modes (OpenD 10.10.7008 only)**: `FUTU_LOGIN_MODE=interactive` preserves an attached private TTY for official first-run login; `remember` requires `FUTU_ACCOUNT_ID` and passes the documented `-login_account` / `-login_by_remember=1` arguments. Phone accounts may set wrapper input `FUTU_ACCOUNT_AREA_CODE=+NN`; these environment variables are not native OpenD settings.
-- **Passwords**: OpenD 10.10.7008 removed account/password XML settings. Never write them to XML or automate interactive entry. Non-empty legacy `FUTU_ACCOUNT_PWD` / `FUTU_ACCOUNT_PWD_MD5` inputs fail with a value-free migration message.
+- **Passwords**: OpenD 10.10.7008 removed account/password XML settings. Never write them to XML. Non-empty legacy `FUTU_ACCOUNT_PWD` / `FUTU_ACCOUNT_PWD_MD5` inputs fail with a value-free migration message. User-local `FUTU_LOGIN_PASSWORD` belongs only to the host login wrapper; agents never read or supply it.
+- **Scoped Expect proxy**: the host-side proxy may fill `FUTU_ACCOUNT_ID`, submit non-empty wrapper-only `FUTU_LOGIN_PASSWORD` once, answer the remember choice with `Y`, and expand a bare user-entered six-digit phone code only after the official hint. It removes the password before spawning Docker/OpenD and never writes a transcript, enables Telnet, retries a rejected password, or claims login success.
 - **Env var injection**: `FUTU_LOGIN_MODE`, `FUTU_ACCOUNT_ID`, optional `FUTU_ACCOUNT_AREA_CODE`, `FUTU_OPEND_RSA_FILE_PATH`, `FUTU_OPEND_IP`, `FUTU_OPEND_PORT` (11111), optional independent `FUTU_OPEND_TELNET_IP` / `FUTU_OPEND_TELNET_PORT`, and optional WebSocket variables. Unset or empty optional ports mean disabled.
 - **Compose network files**: `docker-compose.yaml` is the complete bridge default and publishes API only on host `127.0.0.1`; `docker-compose.host.yaml` is a complete host-mode fallback with no `ports` and loopback bind. Never layer the two files.
 - **Listener guards**: non-loopback API binds require a readable RSA key. Non-loopback WebSocket is rejected until the repository supports the TLS certificate configuration required by official documentation.
@@ -118,7 +127,7 @@ Docker containerization for Futu OpenD — a trading API gateway for Futu Securi
 - **XML templating**: `start.sh` XML-escapes values and substitutes explicit placeholders without `sed` or `eval`; runtime configuration is mode `0600` and contains no login fields.
 - **Pinned bases**: Ubuntu 22.04 amd64 fetch stage plus Ubuntu 18.04 amd64 compatibility runtime, both by manifest digest. Bionic is out of standard support and remains pending real binary migration validation.
 - **Liveness/readiness split**: health checks PID 1's `/proc` process name; readiness requires an SDK result and is never inferred from health.
-- **First login / reauthentication**: only the user runs `bash script/initialize-and-start.sh` in a private TTY. The helper records a missing local TOFU lock, prepares a missing key, and runs one port-published `interactive` container in the foreground. After official login that same process serves the API; no second container is started. Agents never enter passwords or verification codes for the user.
+- **First login / reauthentication**: only the user runs `bash script/initialize-and-start.sh` in a private TTY. The helper records a missing local TOFU lock, prepares a missing key, and runs one port-published `interactive` container through the reviewed Expect proxy. The proxy fills account/`Y`, optionally submits the local wrapper password once, and accepts the user's verification code. After official login that same process serves the API; no second container is started.
 - **Login session persistence**: Named volume `futu-opend-data` at `/home/futu/.com.futunn.FutuOpenD`; the Dockerfile pre-creates the path with `futu:futu` ownership for first-mount inheritance.
 
 ## COMMANDS

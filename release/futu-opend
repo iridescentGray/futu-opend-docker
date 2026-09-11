@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+set +x
+umask 077
+
+readonly bundle_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+readonly env_file=${FUTU_ENV_FILE:-$bundle_dir/.env}
+readonly compose_file=$bundle_dir/compose.yaml
+
+die() {
+  printf 'ERROR: %s\n' "$1" >&2
+  exit "${2:-1}"
+}
+
+file_mode() {
+  if stat -c '%a' "$1" >/dev/null 2>&1; then
+    stat -c '%a' "$1"
+  else
+    stat -f '%Lp' "$1"
+  fi
+}
+
+read_env_value() {
+  awk -F= -v wanted="$1" '
+    $1 == wanted { value = substr($0, index($0, "=") + 1) }
+    END { print value }
+  ' "$env_file"
+}
+
+unquote_env_value() {
+  local value=$1
+  if [[ $value == \"*\" && $value == *\" ]]; then
+    value=${value:1:${#value}-2}
+  elif [[ $value == \'*\' && $value == *\' ]]; then
+    value=${value:1:${#value}-2}
+  fi
+  printf '%s' "$value"
+}
+
+require_base() {
+  command -v docker >/dev/null 2>&1 || die 'docker is required' 69
+  [[ -f "$env_file" && ! -L "$env_file" ]] ||
+    die "environment file must be a regular file: $env_file" 66
+  [[ $(file_mode "$env_file") == 600 ]] || chmod 0600 "$env_file" ||
+    die 'unable to restrict the environment file to mode 0600' 77
+}
+
+compose() {
+  docker compose --env-file "$env_file" -f "$compose_file" "$@"
+}
+
+key_path() {
+  local configured
+  configured=$(read_env_value LOCAL_RSA_FILE_PATH)
+  configured=$(unquote_env_value "${configured:-./futu.pem}")
+  [[ $configured != *$'\n'* && $configured != *$'\r'* ]] ||
+    die 'LOCAL_RSA_FILE_PATH must not contain line breaks' 64
+  if [[ $configured == /* ]]; then
+    printf '%s' "$configured"
+  else
+    printf '%s/%s' "$bundle_dir" "${configured#./}"
+  fi
+}
+
+ensure_key() {
+  local path parent temporary
+  path=$(key_path)
+  if [[ -e $path || -L $path ]]; then
+    [[ -f $path && ! -L $path ]] || die 'RSA key must be a regular file'
+    [[ $(file_mode "$path") == 600 ]] ||
+      die 'existing RSA key must use mode 0600; it was not modified'
+    return
+  fi
+  command -v openssl >/dev/null 2>&1 || die 'openssl is required' 69
+  parent=${path%/*}
+  [[ -d $parent && -w $parent ]] || die 'RSA key parent must exist and be writable'
+  temporary=$(mktemp "$parent/.futu-key.XXXXXX")
+  trap 'rm -f -- "$temporary"' EXIT HUP INT TERM
+  openssl genrsa -traditional -out "$temporary" 1024 >/dev/null 2>&1 ||
+    die 'OpenSSL could not generate the RSA key'
+  chmod 0600 "$temporary"
+  [[ ! -e $path && ! -L $path ]] || die 'RSA key appeared during generation'
+  mv -- "$temporary" "$path"
+  trap - EXIT HUP INT TERM
+  printf 'Generated RSA key: %s\n' "$path"
+}
+
+initialize() {
+  local account password tty_state status key
+  [[ -t 0 && -t 1 ]] || die 'initialization requires a private terminal' 64
+  command -v expect >/dev/null 2>&1 || die 'expect is required' 69
+  ensure_key
+  key=$(key_path)
+  LOCAL_RSA_FILE_PATH="$key" compose config --quiet
+  LOCAL_RSA_FILE_PATH="$key" compose down
+
+  account=${FUTU_ACCOUNT_ID:-$(read_env_value FUTU_ACCOUNT_ID)}
+  password=${FUTU_LOGIN_PASSWORD:-$(read_env_value FUTU_LOGIN_PASSWORD)}
+  unset FUTU_LOGIN_PASSWORD
+  account=$(unquote_env_value "${account%$'\r'}")
+  password=$(unquote_env_value "${password%$'\r'}")
+  [[ -n $account && $account != *$'\n'* && $account != *$'\r'* ]] ||
+    die 'FUTU_ACCOUNT_ID must be configured' 64
+  [[ $password != *$'\n'* && $password != *$'\r'* ]] ||
+    die 'FUTU_LOGIN_PASSWORD must not contain line breaks' 64
+
+  tty_state=$(stty -g) || die 'unable to read terminal settings' 74
+  restore_tty() { stty "$tty_state" 2>/dev/null || true; }
+  trap restore_tty EXIT
+  trap 'restore_tty; trap - EXIT; exit 130' HUP INT TERM
+  stty -echo || die 'unable to disable terminal echo' 74
+  set +e
+  FUTU_EXPECT_ACCOUNT="$account" FUTU_EXPECT_PASSWORD="$password" \
+    expect "$bundle_dir/interactive-login.exp" \
+    env LOCAL_RSA_FILE_PATH="$key" \
+    docker compose --env-file "$env_file" -f "$compose_file" \
+    run --rm --interactive --service-ports \
+    -e FUTU_LOGIN_MODE=interactive futu-opend
+  status=$?
+  set -e
+  password=''
+  unset password
+  restore_tty
+  trap - EXIT HUP INT TERM
+  (( status == 0 )) || die "interactive OpenD exited with status $status" "$status"
+}
+
+command_name=${1:-}
+case "$command_name" in
+  init|reauth)
+    require_base
+    initialize
+    ;;
+  start)
+    require_base
+    ensure_key
+    LOCAL_RSA_FILE_PATH="$(key_path)" compose up -d
+    ;;
+  stop)
+    require_base
+    LOCAL_RSA_FILE_PATH="$(key_path)" compose down
+    ;;
+  status)
+    require_base
+    LOCAL_RSA_FILE_PATH="$(key_path)" compose ps
+    ;;
+  logs)
+    require_base
+    LOCAL_RSA_FILE_PATH="$(key_path)" compose logs -f futu-opend
+    ;;
+  *)
+    printf 'Usage: %s {init|start|stop|status|logs|reauth}\n' "$0" >&2
+    exit 64
+    ;;
+esac

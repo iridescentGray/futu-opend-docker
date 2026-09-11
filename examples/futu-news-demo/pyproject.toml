@@ -1,0 +1,11 @@
+[project]
+name = "futu-news-demo"
+version = "0.1.0"
+description = "Minimal encrypted Futu OpenD news search demo"
+requires-python = ">=3.10"
+dependencies = [
+    "futu-api==10.10.7008",
+]
+
+[tool.uv]
+package = false
