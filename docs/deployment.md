@@ -338,9 +338,9 @@ Docker Compose。不要使用 `sudo podman` 或 `alias docker=podman`。
 
 连接契约：
 
-| Client | Address | Trust boundary |
-| --- | --- | --- |
-| 宿主机 SDK | `127.0.0.1:11111` | 宿主机本地运维 |
+| Client                      | Address            | Trust boundary         |
+| --------------------------- | ------------------ | ---------------------- |
+| 宿主机 SDK                  | `127.0.0.1:11111`  | 宿主机本地运维         |
 | external network 内可信容器 | `futu-opend:11111` | `trading-backend` 成员 |
 
 不要使用固定容器 IP、公网 IP 回绕、host network 或
