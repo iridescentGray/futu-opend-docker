@@ -1,0 +1,10 @@
+services:
+  futu-opend:
+    networks:
+      - default
+      - integration
+
+networks:
+  integration:
+    external: true
+    name: ${FUTU_SHARED_NETWORK:?set FUTU_SHARED_NETWORK to a pre-created trusted network}

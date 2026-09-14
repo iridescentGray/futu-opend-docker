@@ -8,7 +8,9 @@ bundle_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 readonly bundle_dir
 readonly env_file=${FUTU_ENV_FILE:-$bundle_dir/.env}
 readonly compose_file=$bundle_dir/compose.yaml
+readonly integration_compose_file=$bundle_dir/compose.integration.yaml
 readonly release_host_platform=@@FUTU_RELEASE_HOST_PLATFORM@@
+compose_files=(-f "$compose_file")
 
 # shellcheck source=script/container-engine.sh
 source "$bundle_dir/container-engine.sh"
@@ -16,6 +18,24 @@ source "$bundle_dir/container-engine.sh"
 die() {
   printf 'ERROR: %s\n' "$1" >&2
   exit "${2:-1}"
+}
+
+usage() {
+  cat <<EOF
+Usage: $0 {init|reauth|start|stop|status|logs}
+       $0 {-h|--help}
+
+Commands:
+  init      Perform the first interactive login
+  reauth    Reauthenticate interactively
+  start     Start Futu OpenD in the background
+  stop      Stop Futu OpenD without removing its data volume
+  status    Show the service status
+  logs      Follow the Futu OpenD logs
+
+Options:
+  -h, --help  Show this help message and exit
+EOF
 }
 
 file_mode() {
@@ -44,7 +64,7 @@ unquote_env_value() {
 }
 
 require_base() {
-  local engine_os host_arch host_os
+  local engine_os host_arch host_os shared_network
   host_os=$(uname -s)
   host_arch=$(uname -m)
   case "$release_host_platform" in
@@ -72,15 +92,26 @@ require_base() {
     die "environment file must be a regular file: $env_file" 66
   [[ $(file_mode "$env_file") == 600 ]] || chmod 0600 "$env_file" ||
     die 'unable to restrict the environment file to mode 0600' 77
+  shared_network=${FUTU_SHARED_NETWORK:-$(read_env_value FUTU_SHARED_NETWORK)}
+  shared_network=$(unquote_env_value "${shared_network%$'\r'}")
+  [[ $shared_network != *$'\n'* && $shared_network != *$'\r'* ]] ||
+    die 'FUTU_SHARED_NETWORK must not contain line breaks' 64
+  compose_files=(-f "$compose_file")
+  if [[ -n $shared_network ]]; then
+    [[ -f $integration_compose_file ]] ||
+      die "integration Compose file not found: $integration_compose_file" 66
+    export FUTU_SHARED_NETWORK=$shared_network
+    compose_files+=(-f "$integration_compose_file")
+  fi
 }
 
 compose() {
-  "${compose_cmd[@]}" --env-file "$env_file" -f "$compose_file" "$@"
+  "${compose_cmd[@]}" --env-file "$env_file" "${compose_files[@]}" "$@"
 }
 
 validate_config() {
   validate_compose_config "${compose_cmd[@]}" --env-file "$env_file" \
-    -f "$compose_file"
+    "${compose_files[@]}"
 }
 
 prepare_runtime_key() {
@@ -159,7 +190,7 @@ initialize() {
   FUTU_EXPECT_ACCOUNT="$account" FUTU_EXPECT_PASSWORD="$password" \
     expect "$bundle_dir/interactive-login.exp" \
     env LOCAL_RSA_FILE_PATH="$key" \
-    "${compose_cmd[@]}" --env-file "$env_file" -f "$compose_file" \
+    "${compose_cmd[@]}" --env-file "$env_file" "${compose_files[@]}" \
     run --rm --no-deps --interactive --service-ports \
     -e FUTU_LOGIN_MODE=interactive futu-opend
   status=$?
@@ -173,6 +204,9 @@ initialize() {
 
 command_name=${1:-}
 case "$command_name" in
+-h | --help)
+  usage
+  ;;
 init | reauth)
   require_base
   initialize
@@ -198,7 +232,7 @@ logs)
   LOCAL_RSA_FILE_PATH="$(key_path)" compose logs -f futu-opend
   ;;
 *)
-  printf 'Usage: %s {init|start|stop|status|logs|reauth}\n' "$0" >&2
+  usage >&2
   exit 64
   ;;
 esac

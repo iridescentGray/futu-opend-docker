@@ -17,6 +17,7 @@ Docker/Podman containerization for Futu OpenD — a trading API gateway for Futu
 .
 ├── Dockerfile              # Pinned linux/amd64 fetch + runtime stages; final target is runtime
 ├── docker-compose.yaml     # Standalone default: bridge + loopback API publication
+├── docker-compose.integration.yaml # Optional deployment-owned external trusted-client network
 ├── docker-compose.host.yaml # Standalone host-network compatibility mode; never merge with default
 ├── FutuOpenD.xml           # Login-free config template rendered safely at runtime
 ├── opend_version.json      # Version/artifact/base lock proposed through review PRs
@@ -80,7 +81,7 @@ Docker/Podman containerization for Futu OpenD — a trading API gateway for Futu
 | Test startup wrapper                   | `script/start.test.sh`                                                 | Offline fake OpenD; never proves real login                                                       |
 | Initialize or reauthenticate           | `script/initialize-and-start.sh`                                       | Docker/Podman auto-selection; user-only private TTY; current process serves API after login       |
 | Build consumer release bundle          | `script/build-release-bundle.sh`, `release/`                           | Produces Linux/amd64 and macOS Apple Silicon host archives using one registry-digest-pinned image |
-| Operate from release bundle            | `release/futu-opend`, `release/compose.yaml`                           | `init` for first login; `start` for remembered background startup; no local image build           |
+| Operate from release bundle            | `release/futu-opend`, `release/compose*.yaml`                          | `init` for first login; `start` for remembered background startup; optional trusted network       |
 | Modify interactive conveniences        | `script/interactive-login.exp`                                         | Wrapper-only env password is single-use; fake OpenD tests required; no Telnet                     |
 | Lock local first-trust artifact        | `script/lock-artifact.sh`                                              | Fixed official HTTPS temp download and atomic `.env` update; TOFU, not publisher authentication   |
 | Test Compose and key preparation       | `script/compose.test.sh`, `script/init-key.test.sh`                    | Offline/fake inputs; Compose config only, no daemon                                               |
@@ -108,7 +109,7 @@ Docker/Podman containerization for Futu OpenD — a trading API gateway for Futu
 - **Passwords**: OpenD 10.10.7008 removed account/password XML settings. Never write them to XML. Non-empty legacy `FUTU_ACCOUNT_PWD` / `FUTU_ACCOUNT_PWD_MD5` inputs fail with a value-free migration message. User-local `FUTU_LOGIN_PASSWORD` belongs only to the host login wrapper; agents never read or supply it.
 - **Scoped Expect proxy**: the host-side proxy may fill `FUTU_ACCOUNT_ID`, submit non-empty wrapper-only `FUTU_LOGIN_PASSWORD` once, answer the remember choice with `Y`, and expand a bare user-entered six-digit phone code only after the official hint. It removes the password before spawning Docker/OpenD and never writes a transcript, enables Telnet, retries a rejected password, or claims login success.
 - **Env var injection**: `FUTU_LOGIN_MODE`, `FUTU_ACCOUNT_ID`, optional `FUTU_ACCOUNT_AREA_CODE`, `FUTU_OPEND_RSA_FILE_PATH`, `FUTU_OPEND_IP`, `FUTU_OPEND_PORT` (11111), optional independent `FUTU_OPEND_TELNET_IP` / `FUTU_OPEND_TELNET_PORT`, and optional WebSocket variables. Unset or empty optional ports mean disabled.
-- **Compose network files**: `docker-compose.yaml` is the complete bridge default and publishes API only on host `127.0.0.1`; `docker-compose.host.yaml` is a complete host-mode fallback with no `ports` and loopback bind. Never layer the two files.
+- **Compose network files**: `docker-compose.yaml` is the complete bridge default and publishes API only on host `127.0.0.1`; `docker-compose.host.yaml` is a complete host-mode fallback with no `ports` and loopback bind. Never layer the two base files. `docker-compose.integration.yaml` is the sole optional override, layers only on bridge mode, and joins a deployment-owned external trusted-client network when `FUTU_SHARED_NETWORK` is non-empty.
 - **Listener guards**: non-loopback API binds require a readable RSA key. Non-loopback WebSocket is rejected until the repository supports the TLS certificate configuration required by official documentation.
 - **Version tracking**: scheduled CI proposes review-only PRs for `opend_version.json`; it never auto-merges, publishes, or deploys.
 - **ESM boundary**: e2e code is `.mjs` (ESM); `check_version.test.js` stays CJS. Don't add `"type": "module"` to `package.json` until that migrates.

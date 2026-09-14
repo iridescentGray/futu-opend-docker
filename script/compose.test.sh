@@ -19,6 +19,7 @@ BRIDGE_JSON=$TEST_ROOT/bridge.json
 HOST_JSON=$TEST_ROOT/host.json
 EMPTY_JSON=$TEST_ROOT/empty.json
 CUSTOM_JSON=$TEST_ROOT/custom.json
+INTEGRATION_JSON=$TEST_ROOT/integration.json
 UNLOCKED_ENV=$TEST_ROOT/unlocked.env
 
 printf '%s\n' 'fake compose test key, not an RSA credential' >"$FAKE_KEY"
@@ -70,17 +71,23 @@ render "$ROOT_DIR/docker-compose.yaml" "$BASE_ENV" "$BRIDGE_JSON"
 render "$ROOT_DIR/docker-compose.host.yaml" "$BASE_ENV" "$HOST_JSON"
 render "$ROOT_DIR/docker-compose.yaml" "$EMPTY_ENV" "$EMPTY_JSON"
 render "$ROOT_DIR/docker-compose.yaml" "$CUSTOM_ENV" "$CUSTOM_JSON"
+FUTU_SHARED_NETWORK=trading-backend COMPOSE_DISABLE_ENV_FILE=1 docker compose \
+  --project-name "$PROJECT_NAME" \
+  --env-file "$BASE_ENV" \
+  -f "$ROOT_DIR/docker-compose.yaml" \
+  -f "$ROOT_DIR/docker-compose.integration.yaml" \
+  config --format json >"$INTEGRATION_JSON"
 
 python3 - "$BRIDGE_JSON" "$HOST_JSON" "$EMPTY_JSON" "$CUSTOM_JSON" \
-  "$ROOT_DIR/docker-compose.yaml" <<'PY'
+  "$INTEGRATION_JSON" "$ROOT_DIR/docker-compose.yaml" <<'PY'
 import json
 import sys
 
-bridge, host, empty, custom = [json.load(open(path, encoding='utf-8')) for path in sys.argv[1:5]]
-compose_source = open(sys.argv[5], encoding='utf-8').read()
+bridge, host, empty, custom, integration = [json.load(open(path, encoding='utf-8')) for path in sys.argv[1:6]]
+compose_source = open(sys.argv[6], encoding='utf-8').read()
 password_canary = 'FAKE_COMPOSE_PASSWORD_MUST_NOT_LEAK'
 
-for model in (bridge, host, empty, custom):
+for model in (bridge, host, empty, custom, integration):
     rendered = json.dumps(model, sort_keys=True)
     assert password_canary not in rendered
     for candidate in model['services'].values():
@@ -119,6 +126,13 @@ assert bridge_service['platform'] == 'linux/amd64'
 assert bridge_service['build']['target'] == 'runtime'
 assert bridge_service['restart'] == 'on-failure:3'
 assert bridge_service['stop_grace_period'] == '30s'
+assert set(bridge_service['networks']) == {'default'}
+
+integration_service = service(integration)
+assert set(integration_service['networks']) == {'default', 'integration'}
+assert integration['networks']['integration']['external'] is True
+assert integration['networks']['integration']['name'] == 'trading-backend'
+assert integration_service['ports'][0]['host_ip'] == '127.0.0.1'
 
 host_service = service(host)
 host_env = env_map(host)
@@ -172,5 +186,6 @@ print('ok 5 - key preparation is isolated and the runtime key mount is read-only
 print('ok 6 - unset and empty optional listener ports both remain disabled')
 print('ok 7 - custom API port aligns runtime config, health validation, and loopback client endpoint')
 print('ok 8 - wrapper-only login password is absent from rendered container configuration')
-print('1..8')
+print('ok 9 - optional integration override adds only the pre-created external network')
+print('1..9')
 PY

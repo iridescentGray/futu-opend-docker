@@ -95,14 +95,22 @@ updates the local `.env` without another prompt. Executing initialization is
 the user's explicit choice to accept this TOFU behavior; it is not publisher
 authentication. Agents never invent a digest.
 
-Use exactly one complete Compose file:
+Use exactly one complete base Compose file:
 
 - `docker-compose.yaml`: default bridge network, API published only on host
   loopback, outbound networking retained.
 - `docker-compose.host.yaml`: explicit host-network fallback, no `ports`, API
   bound to host loopback.
 
-Never layer these files. Always keep the selected `--env-file` and `-f` flags
+Never layer those two base files. `docker-compose.integration.yaml` is the only
+supported override and may layer only on the default bridge file. A non-empty
+`FUTU_SHARED_NETWORK` makes the source initializer and release launcher add it
+automatically; the deployment environment must pre-create that external
+network, and Compose teardown must not delete it. On a server that also has
+Docker, force `FUTU_CONTAINER_ENGINE=podman` so both projects use the same
+rootless Podman network.
+
+Always keep the selected `--env-file` and `-f` flags
 on `config`, `down`, `run`, `up`, and `logs` commands. Do not claim either mode
 has authenticated successfully without the user's real-login result.
 

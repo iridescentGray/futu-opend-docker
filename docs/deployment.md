@@ -11,11 +11,17 @@
 - 部署：单实例 Docker Compose 或 Podman Compose；Linux/amd64 支持 rootless
   Podman。macOS Apple Silicon 发行包仍使用 Docker Desktop。
 - 默认网络：普通 bridge，API 只发布到宿主机 `127.0.0.1`。
+- 可选集成网络：由部署环境预创建的 external network，通过
+  `FUTU_SHARED_NETWORK` 加入，不归本 Compose project 所有。
 - 兼容网络：独立的 `docker-compose.host.yaml`，不得与默认文件叠加。
 - 非主要目标：原生 Linux/arm64、原生 macOS OpenD、Kubernetes、多实例和业务
   功能扩展。
 
 ## 面向使用者的发行包
+
+当前发行版 `v10.10.7008-r5` 包含 Docker/Podman 双引擎支持、可选的
+`compose.integration.yaml` 可信容器网络，以及发行包启动器的
+`-h` / `--help`。
 
 正式使用路径是版本化、无源码的宿主平台发行包。当前同时生成
 `linux-amd64` 和 `macos-apple-silicon` 两个归档；两者都运行同一个经过测试、
@@ -266,6 +272,23 @@ podman compose --env-file .env -f docker-compose.yaml \
   up -d --no-deps futu-opend
 ```
 
+需要 external integration network 时，源码初始化器在非空
+`FUTU_SHARED_NETWORK` 下自动叠加 `docker-compose.integration.yaml`。日常源码
+启动的等价安全顺序为：
+
+```bash
+podman network exists trading-backend || podman network create trading-backend
+FUTU_CONTAINER_ENGINE=podman FUTU_SHARED_NETWORK=trading-backend \
+  bash script/initialize-and-start.sh
+
+FUTU_SHARED_NETWORK=trading-backend podman compose --env-file .env \
+  -f docker-compose.yaml -f docker-compose.integration.yaml \
+  run --rm --no-deps futu-key-init
+FUTU_SHARED_NETWORK=trading-backend podman compose --env-file .env \
+  -f docker-compose.yaml -f docker-compose.integration.yaml \
+  up -d --no-deps futu-opend
+```
+
 初始化脚本与发行包启动器已经自动执行该顺序，不依赖 provider 对
 `depends_on.condition` 的实现。Compose 中仍保留
 `service_completed_successfully`，保护现有直接 Docker Compose 工作流。
@@ -291,6 +314,39 @@ podman compose --env-file .env -f docker-compose.yaml \
 ```bash
 docker compose --env-file .env -f docker-compose.yaml config
 ```
+
+### 可信容器 external network
+
+`docker-compose.integration.yaml` 是唯一允许叠加到默认 bridge 文件的可选
+override。它只把 `futu-opend` 同时加入 default network 和部署环境拥有的
+external network，不改变端口、密钥、登录、状态卷或 key initializer。它不能
+与 `docker-compose.host.yaml` 组合。
+
+部署环境先创建网络；两个项目必须由同一个普通 Unix 用户、同一个 rootless
+Podman storage 运行：
+
+```bash
+podman network exists trading-backend || podman network create trading-backend
+FUTU_CONTAINER_ENGINE=podman FUTU_SHARED_NETWORK=trading-backend \
+  ./futu-opend init
+FUTU_CONTAINER_ENGINE=podman FUTU_SHARED_NETWORK=trading-backend \
+  ./futu-opend start
+```
+
+若 Docker 与 Podman 同时存在，服务器不能依赖默认 `auto`，因为它会优先选择
+Docker Compose。不要使用 `sudo podman` 或 `alias docker=podman`。
+
+连接契约：
+
+| Client | Address | Trust boundary |
+| --- | --- | --- |
+| 宿主机 SDK | `127.0.0.1:11111` | 宿主机本地运维 |
+| external network 内可信容器 | `futu-opend:11111` | `trading-backend` 成员 |
+
+不要使用固定容器 IP、公网 IP 回绕、host network 或
+`0.0.0.0:11111` host publish。`./futu-opend stop` / Compose `down` 会删除项目
+自己的 default network，但 external network 继续存在；它只能由部署环境显式
+管理。任何加入该网络的容器都能接触 OpenAPI，应视为可信客户端。
 
 ### host 兼容模式
 

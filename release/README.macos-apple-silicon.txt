@@ -23,5 +23,10 @@ Other commands:
   ./futu-opend logs
   ./futu-opend stop
 
+An optional pre-created trusted Docker network can be selected with
+FUTU_SHARED_NETWORK; the launcher then adds compose.integration.yaml. Host SDK
+clients still use 127.0.0.1:11111, while trusted containers on that network use
+futu-opend:11111. The external network is not removed by the stop command.
+
 Do not run docker compose down -v. The named data volume holds remembered
 login state. Login and verification must be completed in a private terminal.

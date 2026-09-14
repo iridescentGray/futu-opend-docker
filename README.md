@@ -22,6 +22,9 @@ WebSocket 默认关闭。
 
 普通使用者不需要克隆源码或在本机构建镜像。下载版本化发行包并校验：
 
+当前发行版为 `v10.10.7008-r5`，包含 Docker/Podman 双引擎支持、可选的可信
+容器网络，以及发行包启动器的 `-h` / `--help`。
+
 ### macOS Apple Silicon
 
 需要 Apple Silicon Mac、Docker Desktop Linux container engine 和 Compose v2。
@@ -29,7 +32,7 @@ WebSocket 默认关闭。
 该发行包运行固定的 Linux/amd64 OpenD 镜像，不是原生 arm64 OpenD：
 
 ```bash
-RELEASE=10.10.7008-r4
+RELEASE=10.10.7008-r5
 curl -fLO "https://github.com/iridescentGray/futu-opend-docker/releases/download/v${RELEASE}/futu-opend-${RELEASE}-macos-apple-silicon.tar.gz"
 curl -fLO "https://github.com/iridescentGray/futu-opend-docker/releases/download/v${RELEASE}/futu-opend-${RELEASE}-macos-apple-silicon.tar.gz.sha256"
 shasum -a 256 -c "futu-opend-${RELEASE}-macos-apple-silicon.tar.gz.sha256"
@@ -40,7 +43,7 @@ cd "futu-opend-${RELEASE}-macos-apple-silicon"
 ### Linux/amd64
 
 ```bash
-RELEASE=10.10.7008-r4
+RELEASE=10.10.7008-r5
 curl -fLO "https://github.com/iridescentGray/futu-opend-docker/releases/download/v${RELEASE}/futu-opend-${RELEASE}-linux-amd64.tar.gz"
 curl -fLO "https://github.com/iridescentGray/futu-opend-docker/releases/download/v${RELEASE}/futu-opend-${RELEASE}-linux-amd64.tar.gz.sha256"
 sha256sum -c "futu-opend-${RELEASE}-linux-amd64.tar.gz.sha256"
@@ -48,9 +51,9 @@ tar -xzf "futu-opend-${RELEASE}-linux-amd64.tar.gz"
 cd "futu-opend-${RELEASE}-linux-amd64"
 ```
 
-Linux/amd64 包需要以下任一容器运行环境：Docker Engine + Docker Compose，或
-Podman + Podman Compose（支持 rootless Podman）。macOS Apple Silicon 包仍
-需要 Docker Desktop + Compose v2。另外需要 OpenSSL/LibreSSL 和 `expect`。
+Linux/amd64 包支持 Docker Engine + Docker Compose 或 Podman + Podman Compose
+（支持 rootless Podman）。macOS Apple Silicon 包仍需要 Docker Desktop +
+Compose v2。另外需要 OpenSSL/LibreSSL 和 `expect`。
 准备配置：
 
 ```bash
@@ -90,6 +93,25 @@ FUTU_CONTAINER_ENGINE=podman ./futu-opend start
 ```
 
 不需要也不应创建 `alias docker=podman`。
+
+### 可选的可信容器网络
+
+standalone 仍是默认行为。需要让另一个可信容器连接 OpenD 时，由部署环境先
+创建独立 external network，再显式设置 `FUTU_SHARED_NETWORK`；启动器会自动
+加载包内 `compose.integration.yaml`：
+
+```bash
+podman network exists trading-backend || podman network create trading-backend
+FUTU_CONTAINER_ENGINE=podman FUTU_SHARED_NETWORK=trading-backend \
+  ./futu-opend init
+FUTU_CONTAINER_ENGINE=podman FUTU_SHARED_NETWORK=trading-backend \
+  ./futu-opend start
+```
+
+服务器同时安装 Docker 和 Podman 时必须显式选择 `podman`，避免两个服务进入
+不同容器引擎。`./futu-opend stop` 只执行 Compose project teardown，不会删除
+external network。宿主机 SDK 仍连接 `127.0.0.1:11111`；加入该可信网络的容器
+连接 `futu-opend:11111`。不要把 API host publish 改为 `0.0.0.0:11111`。
 
 发行包的 Compose 直接拉取由版本和 registry digest 固定的 Linux/amd64 GHCR
 镜像，不包含 Dockerfile、构建上下文或测试源码。macOS 包通过 Docker Desktop

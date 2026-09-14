@@ -39,6 +39,8 @@ trap cleanup EXIT HUP INT TERM
 
 mkdir -p "$temporary_dir/$bundle_name" "$output_dir"
 cp "$root_dir/release/compose.yaml" "$temporary_dir/$bundle_name/compose.yaml"
+cp "$root_dir/release/compose.integration.yaml" \
+  "$temporary_dir/$bundle_name/compose.integration.yaml"
 cp "$root_dir/script/container-engine.sh" \
   "$temporary_dir/$bundle_name/container-engine.sh"
 sed "s|@@FUTU_RELEASE_HOST_PLATFORM@@|$host_platform|g" \
@@ -51,6 +53,7 @@ sed "s|@@FUTU_OPEND_IMAGE@@|$image_ref|g" "$root_dir/release/env.example" \
 chmod 0755 "$temporary_dir/$bundle_name/futu-opend" \
   "$temporary_dir/$bundle_name/interactive-login.exp"
 chmod 0644 "$temporary_dir/$bundle_name/compose.yaml" \
+  "$temporary_dir/$bundle_name/compose.integration.yaml" \
   "$temporary_dir/$bundle_name/container-engine.sh" \
   "$temporary_dir/$bundle_name/env.example" \
   "$temporary_dir/$bundle_name/README.txt"

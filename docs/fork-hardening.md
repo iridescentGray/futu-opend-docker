@@ -403,6 +403,9 @@ configuration file. This conflict is recorded rather than silently resolved.
       release-bundle support, simulated command coverage, and Podman CI smoke.
 - [x] Phase 16 — Podman Compose 1.0.x configuration validation compatibility,
       discovered by the required publish smoke and covered before r4.
+- [x] Phase 17 — optional deployment-owned trusted-container network and
+      release-launcher help, with standalone behavior and volume preservation
+      retained for r5.
 
 The phases deliberately keep login, security configuration, build hardening,
 and test/CI work separate. Target-platform real login, SDK readiness, image
@@ -1053,11 +1056,36 @@ retains `config --quiet`; Podman runs supported `config` while discarding only
 normal stdout so errors remain visible. Source initialization, release `init`,
 `reauth`, and `start`, and the Podman smoke all use this shared contract.
 
-| Check                                  | Result  | Notes                                                                                                                                         |
-| -------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| First corrected main Publish attempt   | FAILED  | Docker Layer 2 reached its explicit 20-minute timeout; Podman and publication steps did not run.                                              |
-| Second corrected main Publish attempt  | FAILED  | Docker Layer 2 passed; rootless Podman built the image, then `podman-compose 1.0.6` rejected `config --quiet`. Publication steps did not run. |
-| Engine validation unit tests           | PASSED  | Docker retains `config --quiet`; Podman omits the unsupported flag without fallback.                                                          |
-| Source and release simulated workflows | PASSED  | Initialization and all release operations use the shared engine-specific validation path.                                                     |
-| Local rootless Podman smoke            | SKIPPED | Podman is unavailable on the macOS host; the required Ubuntu workflow remains the runtime gate.                                               |
-| Tagged `v10.10.7008-r4` GitHub Release | NOT RUN | Must wait for the new main workflow's Docker and rootless Podman gates.                                                                       |
+| Check | Result | Notes |
+| --- | --- | --- |
+| First corrected main Publish attempt | FAILED | Docker Layer 2 reached its explicit 20-minute timeout; Podman and publication steps did not run. |
+| Second corrected main Publish attempt | FAILED | Docker Layer 2 passed; rootless Podman built the image, then `podman-compose 1.0.6` rejected `config --quiet`. Publication steps did not run. |
+| Engine validation unit tests | PASSED | Docker retains `config --quiet`; Podman omits the unsupported flag without fallback. |
+| Source and release simulated workflows | PASSED | Initialization and all release operations use the shared engine-specific validation path. |
+| Local rootless Podman smoke | SKIPPED | Podman is unavailable on the macOS host; the required Ubuntu workflow remains the runtime gate. |
+| Tagged `v10.10.7008-r4` GitHub Release | PASSED | The required gates passed and GitHub published the immutable r4 image and both host bundles on 2026-09-11. |
+
+## Phase 17 — trusted-container integration and launcher help
+
+The standalone bridge model remains the default. A new optional
+`docker-compose.integration.yaml` override joins only `futu-opend` to a
+pre-created external network selected by `FUTU_SHARED_NETWORK`; it does not
+change host-loopback publication, listeners, login arguments, key handling, or
+state volumes. Source initialization and release-bundle operations select the
+override consistently, and teardown leaves the deployment-owned network in
+place.
+
+The release launcher now accepts `-h` and `--help`, prints its commands without
+requiring a valid environment file or container engine, and returns success.
+Unknown commands continue to print usage to stderr and return status 64.
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| `bash script/layer1.test.sh` | PASSED | All offline shell/config suites passed, including 10 engine, 9 Compose, 7 release-bundle, and 9 CI-gate checks. |
+| `bash script/release_bundle.test.sh` | PASSED | Both help flags, invalid-command status, standalone/integration selection, both host bundles, and volume-preserving operations passed with fake engines. |
+| `git diff --check` | PASSED | No whitespace errors before release preparation. |
+| Full `npm run test:layer1` | NOT RUN | Node/npm are unavailable on the local host; tagged CI installs locked dependencies and reruns the complete gate. |
+| Local Docker Layer 2 | FAILED | The installed Docker CLI could not reach a daemon; no image, container, volume, or network was created. |
+| Local rootless Podman smoke | SKIPPED | Podman is unavailable on the local host; the tagged Ubuntu workflow remains the required runtime gate. |
+| Real login and encrypted SDK readiness | NOT RUN | These remain user-only checks; no credentials, key, session state, or verification code was accessed. |
+| Tagged `v10.10.7008-r5` GitHub Release | NOT RUN | Requires the release commit and immutable tag to be pushed; publication remains behind all workflow gates. |

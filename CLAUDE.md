@@ -83,7 +83,9 @@ See `docs/E2E.md`.
 3. `docker-compose.yaml` is the complete bridge default: API is published only
    on host loopback, while outbound and same-network access remain possible.
    `docker-compose.host.yaml` is a separate complete host-mode fallback with no
-   `ports`; never layer the files.
+   `ports`; never layer those base files. The optional
+   `docker-compose.integration.yaml` override may layer only on the bridge file
+   to join a deployment-owned external trusted-client network.
 4. `script/init-key.sh` is the only root helper. It is networkless and
    non-restarting, copies a host mode-`0600` key into the key volume as the
    actual `futu` UID/GID and mode `0400`; OpenD mounts it read-only as `futu`.

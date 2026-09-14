@@ -40,7 +40,7 @@ linux_bundle=$(cd "$test_root/futu-opend-10.10.7008-r2-linux-amd64" && pwd)
 mac_bundle=$(cd "$test_root/futu-opend-10.10.7008-r2-macos-apple-silicon" && pwd)
 
 for bundle in "$linux_bundle" "$mac_bundle"; do
-  for file in compose.yaml container-engine.sh env.example futu-opend interactive-login.exp README.txt; do
+  for file in compose.yaml compose.integration.yaml container-engine.sh env.example futu-opend interactive-login.exp README.txt; do
     [[ -f $bundle/$file ]]
   done
   grep -Fq "FUTU_OPEND_IMAGE=$image" "$bundle/env.example"
@@ -52,6 +52,8 @@ for bundle in "$linux_bundle" "$mac_bundle"; do
     exit 1
   fi
   grep -Fq 'run --rm --no-deps --interactive --service-ports' "$bundle/futu-opend"
+  grep -Fq 'external: true' "$bundle/compose.integration.yaml"
+  grep -Fq 'FUTU_SHARED_NETWORK' "$bundle/compose.integration.yaml"
   grep -Fq -- '-e FUTU_LOGIN_MODE=interactive futu-opend' "$bundle/futu-opend"
   if grep -Fq 'down -v' "$bundle/futu-opend"; then
     printf 'release launcher contains destructive volume teardown\n' >&2
@@ -73,6 +75,26 @@ grep -Fq 'Linux/amd64 host' "$linux_bundle/README.txt"
 grep -Fq 'macOS Apple Silicon host' "$mac_bundle/README.txt"
 grep -Fq 'not a native arm64 OpenD image' "$mac_bundle/README.txt"
 printf 'ok 1 - release builder creates source-free Linux and Apple Silicon host bundles\n'
+
+for help_option in -h --help; do
+  help_output=$(FUTU_CONTAINER_ENGINE=unsupported \
+    FUTU_ENV_FILE="$test_root/does-not-exist" \
+    bash "$linux_bundle/futu-opend" "$help_option")
+  grep -Fq 'Usage:' <<<"$help_output"
+  grep -Fq 'init      Perform the first interactive login' <<<"$help_output"
+  grep -Fq -- '-h, --help  Show this help message and exit' <<<"$help_output"
+done
+if FUTU_CONTAINER_ENGINE=unsupported FUTU_ENV_FILE="$test_root/does-not-exist" \
+  bash "$linux_bundle/futu-opend" unsupported-command \
+  >"$test_root/invalid-command.out" 2>&1; then
+  printf 'release launcher accepted an unsupported command\n' >&2
+  exit 1
+else
+  invalid_status=$?
+fi
+[[ $invalid_status == 64 ]]
+grep -Fq 'Usage:' "$test_root/invalid-command.out"
+printf 'ok 2 - release launcher provides help without runtime prerequisites\n'
 
 mkdir "$test_root/fake-bin"
 # These variables expand only when the generated fake commands run.
@@ -155,11 +177,15 @@ exercise_bundle() {
   else
     grep -Fq 'config --quiet' "$capture"
   fi
+  if grep -Fq 'compose.integration.yaml' "$capture"; then
+    printf 'standalone launcher unexpectedly loaded the integration override\n' >&2
+    exit 1
+  fi
 }
 
 exercise_bundle "$linux_bundle" Linux x86_64 podman "$test_root/linux-podman.args"
 exercise_bundle "$mac_bundle" Darwin arm64 auto "$test_root/mac-docker.args"
-printf 'ok 2 - Linux Podman and macOS Docker launchers preserve key ordering and volumes\n'
+printf 'ok 3 - Linux Podman and macOS Docker launchers preserve key ordering and volumes\n'
 
 run_bundle_with_tty() {
   local bundle=$1 command_name=$2 capture=$3 output=$4
@@ -193,17 +219,19 @@ PY
 printf '%s\n' \
   'FUTU_ACCOUNT_ID=fake-release-account' \
   'FUTU_LOGIN_PASSWORD=FAKE_RELEASE_PASSWORD_MUST_NOT_LEAK' \
+  'FUTU_SHARED_NETWORK=trading-backend' \
   >>"$linux_bundle/.env"
 run_bundle_with_tty "$linux_bundle" init "$test_root/linux-podman.args" "$test_root/init.out"
 run_bundle_with_tty "$linux_bundle" reauth "$test_root/linux-podman.args" "$test_root/reauth.out"
 [[ $(grep -c 'run --rm --no-deps --interactive --service-ports' "$test_root/linux-podman.args") == 2 ]]
+grep -Fq "$linux_bundle/compose.integration.yaml" "$test_root/linux-podman.args"
 if grep -Fq 'FAKE_RELEASE_PASSWORD_MUST_NOT_LEAK' "$test_root/linux-podman.args" ||
   grep -Fq 'FAKE_RELEASE_PASSWORD_MUST_NOT_LEAK' "$test_root/init.out" ||
   grep -Fq 'FAKE_RELEASE_PASSWORD_MUST_NOT_LEAK' "$test_root/reauth.out"; then
   printf 'release init/reauth exposed the fake password\n' >&2
   exit 1
 fi
-printf 'ok 3 - all six launcher operations stay behind the engine abstraction\n'
+printf 'ok 4 - all six launcher operations stay behind the engine abstraction\n'
 
 rm -f -- "$mac_bundle/futu.pem"
 ENGINE_CAPTURE="$test_root/mac-docker.args" FUTU_CONTAINER_ENGINE=docker \
@@ -211,7 +239,7 @@ ENGINE_CAPTURE="$test_root/mac-docker.args" FUTU_CONTAINER_ENGINE=docker \
   PATH="$test_root/fake-bin:$PATH" bash "$mac_bundle/futu-opend" start >/dev/null
 grep -Fqx -- '-----BEGIN RSA PRIVATE KEY-----' "$mac_bundle/futu.pem"
 [[ $(file_mode "$mac_bundle/futu.pem") == 600 ]]
-printf 'ok 4 - Apple Silicon launcher supports the macOS LibreSSL PKCS#1 fallback\n'
+printf 'ok 5 - Apple Silicon launcher supports the macOS LibreSSL PKCS#1 fallback\n'
 
 if ENGINE_CAPTURE="$test_root/mismatch.args" FUTU_CONTAINER_ENGINE=docker \
   TEST_UNAME_S=Linux TEST_UNAME_M=x86_64 \
@@ -222,7 +250,7 @@ if ENGINE_CAPTURE="$test_root/mismatch.args" FUTU_CONTAINER_ENGINE=docker \
 fi
 grep -Fq 'this release requires an Apple Silicon Mac' "$test_root/mismatch.out"
 [[ ! -e $test_root/mismatch.args ]]
-printf 'ok 5 - platform-specific launcher rejects a mismatched host before Docker access\n'
+printf 'ok 6 - platform-specific launcher rejects a mismatched host before Docker access\n'
 
 if bash "$root_dir/script/build-release-bundle.sh" \
   10.10.7008-r2 latest "$test_root/invalid" >/dev/null 2>&1; then
@@ -234,5 +262,5 @@ if bash "$root_dir/script/build-release-bundle.sh" \
   printf 'unsupported release host platform was accepted\n' >&2
   exit 1
 fi
-printf 'ok 6 - release builder rejects unpinned images and unsupported host platforms\n'
-printf '1..6\n'
+printf 'ok 7 - release builder rejects unpinned images and unsupported host platforms\n'
+printf '1..7\n'

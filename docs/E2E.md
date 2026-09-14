@@ -52,9 +52,10 @@ Coverage includes:
 - HTTPS-only download flags, HTTP/timeout failure, bounded retries, malformed
   inputs, SHA mismatch, invalid archive paths/content, atomic preservation, and
   TOFU-report isolation;
-- bridge/host effective Compose models, custom API port propagation to the
-  runtime environment, loopback client endpoint, configuration-aware health
-  command, and exclusion of the wrapper-only password from container config;
+- bridge/host effective Compose models, optional external-network override,
+  custom API port propagation to the runtime environment, loopback client
+  endpoint, configuration-aware health command, and exclusion of the
+  wrapper-only password from container config;
 - source-free release contents, archive checksum, GHCR registry-digest pin,
   image-only Compose, launcher start/stop arguments, volume preservation, and
   rejection of unpinned image references;
@@ -122,8 +123,10 @@ On Linux/amd64 with rootless Podman and a working Compose provider:
 npm run test:podman-smoke
 ```
 
-The test builds the same `Dockerfile` with `podman build`, renders both the
-source and release Compose models, runs the release key initializer, then checks
+The test builds the same `Dockerfile` with `podman build`, renders standalone
+and integration variants of both source and release Compose models, runs the
+release key initializer, checks that `down` preserves the pre-created external
+network, then checks
 from a non-root service container that the named-volume key is
 `10001:10001:0400`. It uses a unique project, image, temporary key and env file;
 its `down -v` cleanup targets only those test resources. It never starts a real

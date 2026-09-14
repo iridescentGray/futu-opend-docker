@@ -9,9 +9,11 @@ suffix="$$-${RANDOM}"
 container_name="futu-opend-smoke-${suffix}"
 volume_name="futu-opend-smoke-state-${suffix}"
 image_name=${SMOKE_IMAGE:-"futu-opend-smoke:test-${suffix}"}
+integration_network="futu-opend-smoke-network-${suffix}"
 container_created=false
 volume_created=false
 image_built=false
+integration_network_created=false
 
 fail() {
   printf 'FAILED: container smoke: %s\n' "$1" >&2
@@ -42,6 +44,9 @@ cleanup() {
   fi
   if [[ $image_built == true && ${SMOKE_KEEP_IMAGE:-0} != 1 ]]; then
     run_timeout 30 docker image rm "$image_name" >/dev/null 2>&1 || true
+  fi
+  if [[ $integration_network_created == true ]]; then
+    run_timeout 15 docker network rm "$integration_network" >/dev/null 2>&1 || true
   fi
   rm -rf -- "$test_root"
 }
@@ -206,6 +211,34 @@ for canary in "$password_canary" "$md5_canary"; do
   fi
 done
 
+integration_env=$test_root/integration.env
+integration_key=$test_root/integration.pem
+printf '%s\n' 'fake integration test key' >"$integration_key"
+chmod 0600 "$integration_key"
+printf '%s\n' \
+  "FUTU_OPEND_IMAGE=$image_name" \
+  'FUTU_ACCOUNT_ID=fake-integration-account' \
+  "LOCAL_RSA_FILE_PATH=$integration_key" \
+  >"$integration_env"
+chmod 0600 "$integration_env"
+run_timeout 15 docker network create "$integration_network" >/dev/null
+integration_network_created=true
+FUTU_SHARED_NETWORK="$integration_network" run_timeout 30 docker compose \
+  --project-name "futu-opend-smoke-compose-${suffix}" \
+  --env-file "$integration_env" \
+  -f "$root_dir/release/compose.yaml" \
+  -f "$root_dir/release/compose.integration.yaml" config --quiet ||
+  fail 'Docker Compose rejected the integration override'
+FUTU_SHARED_NETWORK="$integration_network" run_timeout 30 docker compose \
+  --project-name "futu-opend-smoke-compose-${suffix}" \
+  --env-file "$integration_env" \
+  -f "$root_dir/release/compose.yaml" \
+  -f "$root_dir/release/compose.integration.yaml" down ||
+  fail 'Docker Compose integration teardown failed'
+run_timeout 10 docker network inspect "$integration_network" >/dev/null ||
+  fail 'Docker Compose down deleted the deployment-owned external network'
+
 printf '%s\n' \
   'PASSED: image build/inspection and controlled no-credential container smoke' \
+  'PASSED: Docker Compose preserved the external integration network after down' \
   'NOT VERIFIED: real OpenD login, business readiness, SDK response, or market availability'

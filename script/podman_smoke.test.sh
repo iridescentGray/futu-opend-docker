@@ -29,14 +29,20 @@ command -v openssl >/dev/null 2>&1 || skip_or_fail 'openssl is unavailable'
 test_root=$(mktemp -d "${TMPDIR:-/tmp}/futu-podman-smoke.XXXXXX")
 project_name=futu-podman-smoke-$$
 image_name=${PODMAN_SMOKE_IMAGE:-localhost/futu-opend-podman-smoke:$$}
+external_network=futu-opend-integration-smoke-$$
+external_network_created=false
 env_file=$test_root/podman.env
 key_file=$test_root/futu.pem
 image_built=false
 
 cleanup() {
-  LOCAL_RSA_FILE_PATH="$key_file" podman compose \
+  FUTU_SHARED_NETWORK="$external_network" LOCAL_RSA_FILE_PATH="$key_file" podman compose \
     --project-name "$project_name" --env-file "$env_file" \
-    -f "$root_dir/release/compose.yaml" down -v >/dev/null 2>&1 || true
+    -f "$root_dir/release/compose.yaml" \
+    -f "$root_dir/release/compose.integration.yaml" down -v >/dev/null 2>&1 || true
+  if [[ $external_network_created == true ]]; then
+    podman network rm "$external_network" >/dev/null 2>&1 || true
+  fi
   if [[ $image_built == true ]]; then
     podman image rm "$image_name" >/dev/null 2>&1 || true
   fi
@@ -58,6 +64,8 @@ printf '%s\n' \
   "FUTU_OPEND_VER=$version" \
   "FUTU_OPEND_SHA256=$artifact_sha" >"$env_file"
 chmod 0600 "$env_file"
+podman network create "$external_network" >/dev/null
+external_network_created=true
 
 if [[ ${PODMAN_SMOKE_SKIP_BUILD:-0} == 1 ]]; then
   podman image inspect "$image_name" >/dev/null 2>&1 ||
@@ -82,10 +90,24 @@ LOCAL_RSA_FILE_PATH="$key_file" validate_compose_config podman compose \
   -f "$root_dir/docker-compose.yaml"
 printf 'PASSED: podman compose accepted the source deployment model\n'
 
+FUTU_SHARED_NETWORK="$external_network" LOCAL_RSA_FILE_PATH="$key_file" \
+  validate_compose_config podman compose \
+  --project-name "$project_name-source" --env-file "$env_file" \
+  -f "$root_dir/docker-compose.yaml" \
+  -f "$root_dir/docker-compose.integration.yaml"
+printf 'PASSED: podman compose accepted the source integration override\n'
+
 LOCAL_RSA_FILE_PATH="$key_file" validate_compose_config podman compose \
   --project-name "$project_name" --env-file "$env_file" \
   -f "$root_dir/release/compose.yaml"
 printf 'PASSED: podman compose accepted the release model\n'
+
+FUTU_SHARED_NETWORK="$external_network" LOCAL_RSA_FILE_PATH="$key_file" \
+  validate_compose_config podman compose \
+  --project-name "$project_name" --env-file "$env_file" \
+  -f "$root_dir/release/compose.yaml" \
+  -f "$root_dir/release/compose.integration.yaml"
+printf 'PASSED: podman compose accepted the release integration override\n'
 
 LOCAL_RSA_FILE_PATH="$key_file" podman compose \
   --project-name "$project_name" --env-file "$env_file" \
@@ -99,3 +121,13 @@ metadata=$(podman run --rm --user 10001:10001 \
   exit 1
 }
 printf 'PASSED: rootless Podman preserved uid=10001 gid=10001 mode=0400 in the named volume\n'
+
+FUTU_SHARED_NETWORK="$external_network" LOCAL_RSA_FILE_PATH="$key_file" podman compose \
+  --project-name "$project_name" --env-file "$env_file" \
+  -f "$root_dir/release/compose.yaml" \
+  -f "$root_dir/release/compose.integration.yaml" down
+podman network exists "$external_network" || {
+  printf 'FAILED: Compose down deleted the deployment-owned external network\n' >&2
+  exit 1
+}
+printf 'PASSED: rootless Podman Compose down preserved the external integration network\n'

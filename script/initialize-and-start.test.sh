@@ -122,6 +122,8 @@ parts = open(sys.argv[1], encoding='utf-8').read().split('CALL\n')[1:]
 calls = [part.split('END\n', 1)[0].splitlines() for part in parts]
 assert len(calls) == 5, calls
 assert calls[0] == ['compose', 'version'], calls[0]
+assert all(call.count('-f') == 1 for call in calls[1:]), calls
+assert all(not any('integration' in item for item in call) for call in calls[1:]), calls
 assert calls[1][-2:] == ['config', '--quiet'], calls[1]
 assert calls[2][-1] == 'down', calls[2]
 assert calls[3][-4:] == ['run', '--rm', '--no-deps', 'futu-key-init'], calls[3]
@@ -177,12 +179,25 @@ PATH="$fake_bin:$PATH" \
   FAKE_DOCKER_LOG="$podman_dir/podman.log" \
   FAKE_RECEIVED_PASSWORD_FILE="$podman_dir/received-password" \
   FUTU_CONTAINER_ENGINE=podman \
+  FUTU_SHARED_NETWORK=trading-backend \
   FUTU_ENV_FILE="$env_file" \
   FUTU_COMPOSE_FILE="$root_dir/docker-compose.yaml" \
   LOCAL_RSA_FILE_PATH="$podman_key" \
   run_with_tty "$podman_dir/output"
 grep -Fq 'podman compose with the remembered state' "$podman_dir/output"
 [[ $(grep -c '^CALL$' "$podman_dir/podman.log") == 5 ]]
-printf 'ok 4 - source initialization uses the explicitly selected Podman Compose command\n'
+python3 - "$podman_dir/podman.log" "$root_dir/docker-compose.yaml" \
+  "$root_dir/docker-compose.integration.yaml" <<'PY'
+import sys
+
+parts = open(sys.argv[1], encoding='utf-8').read().split('CALL\n')[1:]
+calls = [part.split('END\n', 1)[0].splitlines() for part in parts]
+for call in calls[1:]:
+    first = call.index('-f')
+    second = call.index('-f', first + 1)
+    assert call[first + 1] == sys.argv[2], call
+    assert call[second + 1] == sys.argv[3], call
+PY
+printf 'ok 4 - source initialization adds the integration override under explicit Podman\n'
 
 printf '1..4\n'

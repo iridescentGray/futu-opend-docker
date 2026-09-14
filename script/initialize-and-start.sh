@@ -8,6 +8,7 @@ root_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 readonly root_dir
 readonly env_file=${FUTU_ENV_FILE:-$root_dir/.env}
 readonly compose_file=${FUTU_COMPOSE_FILE:-$root_dir/docker-compose.yaml}
+readonly integration_compose_file=$root_dir/docker-compose.integration.yaml
 key_path=${LOCAL_RSA_FILE_PATH:-$root_dir/futu.pem}
 
 # shellcheck source=script/container-engine.sh
@@ -35,6 +36,16 @@ read_env_value() {
   ' "$env_file"
 }
 
+unquote_env_value() {
+  local value=$1
+  if [[ $value == \"*\" && $value == *\" ]]; then
+    value=${value:1:${#value}-2}
+  elif [[ $value == \'*\' && $value == *\' ]]; then
+    value=${value:1:${#value}-2}
+  fi
+  printf '%s' "$value"
+}
+
 [[ -t 0 && -t 1 ]] ||
   die 'initialization requires a private stdin/stdout TTY' 64
 [[ -f $env_file && ! -L $env_file ]] ||
@@ -54,6 +65,18 @@ resolve_container_engine || exit $?
 command -v openssl >/dev/null 2>&1 || die 'openssl is required' 69
 command -v expect >/dev/null 2>&1 ||
   die 'expect is required for the simplified interactive login' 69
+
+shared_network=${FUTU_SHARED_NETWORK:-$(read_env_value FUTU_SHARED_NETWORK)}
+shared_network=$(unquote_env_value "${shared_network%$'\r'}")
+[[ $shared_network != *$'\n'* && $shared_network != *$'\r'* ]] ||
+  die 'FUTU_SHARED_NETWORK must not contain line breaks' 64
+compose_files=(-f "$compose_file")
+if [[ -n $shared_network ]]; then
+  [[ -f $integration_compose_file ]] ||
+    die "integration Compose file not found: $integration_compose_file" 66
+  export FUTU_SHARED_NETWORK=$shared_network
+  compose_files+=(-f "$integration_compose_file")
+fi
 
 account_id=${FUTU_ACCOUNT_ID-}
 login_password=${FUTU_LOGIN_PASSWORD-}
@@ -83,7 +106,7 @@ unset variable_value variable_name
 
 bash "$root_dir/script/lock-artifact.sh" "$env_file"
 
-compose=("${compose_cmd[@]}" --env-file "$env_file" -f "$compose_file")
+compose=("${compose_cmd[@]}" --env-file "$env_file" "${compose_files[@]}")
 
 # Validate interpolation before creating a key or stopping an existing service.
 if ! (
