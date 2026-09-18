@@ -144,10 +144,10 @@ Docker/Podman containerization for Futu OpenD — a trading API gateway for Futu
 
 | Fact                      | Value                       | Source of truth                                                      |
 | ------------------------- | --------------------------- | -------------------------------------------------------------------- |
-| Stable OpenD              | 10.10.7008                  | `opend_version.json` <!-- futu-opend-version -->                     |
+| Stable OpenD              | 10.11.7108                  | `opend_version.json` <!-- futu-opend-version -->                     |
 | Beta OpenD                | null                        | `opend_version.json`                                                 |
 | Build version input       | required `FUTU_OPEND_VER`   | Compose/CI reads `opend_version.json`; Dockerfile has no fallback    |
-| `.env.example` default    | 10.10.7008                  | `.env.example` (mirrors stable on bumps) <!-- futu-opend-version --> |
+| `.env.example` default    | 10.11.7108                  | `.env.example` (mirrors stable on bumps) <!-- futu-opend-version --> |
 | Runtime base              | pinned `ubuntu:18.04` amd64 | `opend_version.json` + `Dockerfile`; compatibility baseline, EOL     |
 | Build base                | pinned `ubuntu:22.04` amd64 | `opend_version.json` + `Dockerfile`                                  |
 | Artifact integrity        | TOFU-reviewed SHA-256       | Fixed official-HTTPS archive; not publisher signature authentication |

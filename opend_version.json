@@ -2,14 +2,14 @@
   "schemaVersion": 1,
   "versionSource": "https://www.futunn.com/en/download/OpenAPI",
   "betaVersion": null,
-  "stableVersion": "10.10.7008",
+  "stableVersion": "10.11.7108",
   "stableArtifact": {
     "platform": "linux/amd64",
     "distribution": "Ubuntu18.04",
-    "fileName": "Futu_OpenD_10.10.7008_Ubuntu18.04.tar.gz",
-    "url": "https://softwaredownload.futunn.com/Futu_OpenD_10.10.7008_Ubuntu18.04.tar.gz",
-    "sha256": "dbb8e5e73faacaad093d7bac6c3bb60efd6f29a28aa7541c494c015aaec13d8d",
-    "integrityStatus": "tofu-reviewed"
+    "fileName": "Futu_OpenD_10.11.7108_Ubuntu18.04.tar.gz",
+    "url": "https://softwaredownload.futunn.com/Futu_OpenD_10.11.7108_Ubuntu18.04.tar.gz",
+    "sha256": null,
+    "integrityStatus": "unlocked-no-publisher-checksum"
   },
   "baseImages": {
     "build": {
