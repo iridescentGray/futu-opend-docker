@@ -4,7 +4,7 @@
 [![GHCR](https://img.shields.io/badge/GHCR-futu--opend--docker-blue)](https://github.com/iridescentGray/futu-opend-docker/pkgs/container/futu-opend-docker)
 [![License](https://img.shields.io/github/license/iridescentGray/futu-opend-docker)](LICENSE)
 
-面向个人长期使用的 FutuOpenD Docker / Podman Compose 项目，运行目标为
+面向个人长期使用的 FutuOpenD Docker / Podman 项目，运行目标为
 Linux/amd64、OpenD 10.10.7008 和单实例。发行包支持 Linux/amd64 宿主机，
 以及通过 Docker Desktop x86 仿真运行的 macOS Apple Silicon（M1 或更新）。
 
@@ -22,8 +22,9 @@ WebSocket 默认关闭。
 
 普通使用者不需要克隆源码或在本机构建镜像。下载版本化发行包并校验：
 
-当前发行版为 `v10.10.7008-r5`，包含 Docker/Podman 双引擎支持、可选的可信
-容器网络，以及发行包启动器的 `-h` / `--help`。
+当前发行版为 `v10.10.7008-r6`，包含 Docker Compose/原生 Podman 双引擎支持、
+可选的可信容器网络，以及发行包启动器的 `-h` / `--help`。Linux/amd64 的
+Podman 路径直接使用 `podman run`，不依赖 `podman-compose`。
 
 ### macOS Apple Silicon
 
@@ -32,7 +33,7 @@ WebSocket 默认关闭。
 该发行包运行固定的 Linux/amd64 OpenD 镜像，不是原生 arm64 OpenD：
 
 ```bash
-RELEASE=10.10.7008-r5
+RELEASE=10.10.7008-r6
 curl -fLO "https://github.com/iridescentGray/futu-opend-docker/releases/download/v${RELEASE}/futu-opend-${RELEASE}-macos-apple-silicon.tar.gz"
 curl -fLO "https://github.com/iridescentGray/futu-opend-docker/releases/download/v${RELEASE}/futu-opend-${RELEASE}-macos-apple-silicon.tar.gz.sha256"
 shasum -a 256 -c "futu-opend-${RELEASE}-macos-apple-silicon.tar.gz.sha256"
@@ -43,7 +44,7 @@ cd "futu-opend-${RELEASE}-macos-apple-silicon"
 ### Linux/amd64
 
 ```bash
-RELEASE=10.10.7008-r5
+RELEASE=10.10.7008-r6
 curl -fLO "https://github.com/iridescentGray/futu-opend-docker/releases/download/v${RELEASE}/futu-opend-${RELEASE}-linux-amd64.tar.gz"
 curl -fLO "https://github.com/iridescentGray/futu-opend-docker/releases/download/v${RELEASE}/futu-opend-${RELEASE}-linux-amd64.tar.gz.sha256"
 sha256sum -c "futu-opend-${RELEASE}-linux-amd64.tar.gz.sha256"
@@ -51,9 +52,9 @@ tar -xzf "futu-opend-${RELEASE}-linux-amd64.tar.gz"
 cd "futu-opend-${RELEASE}-linux-amd64"
 ```
 
-Linux/amd64 包支持 Docker Engine + Docker Compose 或 Podman + Podman Compose
-（支持 rootless Podman）。macOS Apple Silicon 包仍需要 Docker Desktop +
-Compose v2。另外需要 OpenSSL/LibreSSL 和 `expect`。
+Linux/amd64 包支持 Docker Engine + Docker Compose 或原生 rootless Podman；
+Podman 路径不需要 Compose provider。macOS Apple Silicon 包仍需要 Docker
+Desktop + Compose v2。另外需要 OpenSSL/LibreSSL 和 `expect`。
 准备配置：
 
 ```bash
@@ -84,8 +85,8 @@ chmod 0600 .env
 ```
 
 Linux 启动器默认使用 `FUTU_CONTAINER_ENGINE=auto`：先检查
-`docker compose version`，不可用时再检查 `podman compose version`。可以明确
-指定引擎；显式模式不可用时会失败，不会回退：
+`docker compose version`，不可用时再检查原生 `podman`。可以明确指定引擎；
+显式模式不可用时会失败，不会回退：
 
 ```bash
 FUTU_CONTAINER_ENGINE=docker ./futu-opend start
@@ -98,7 +99,7 @@ FUTU_CONTAINER_ENGINE=podman ./futu-opend start
 
 standalone 仍是默认行为。需要让另一个可信容器连接 OpenD 时，由部署环境先
 创建独立 external network，再显式设置 `FUTU_SHARED_NETWORK`；启动器会自动
-加载包内 `compose.integration.yaml`：
+Docker 路径会加载包内 `compose.integration.yaml`；Podman 路径直接加入网络：
 
 ```bash
 podman network exists trading-backend || podman network create trading-backend
@@ -207,14 +208,14 @@ podman compose --env-file .env -f docker-compose.yaml \
 
 ## 容器运行环境支持
 
-| Runtime                                  | Support                                            |
-| ---------------------------------------- | -------------------------------------------------- |
-| Docker Engine + `docker compose`         | supported                                          |
-| Podman + `podman compose`（Linux/amd64） | supported                                          |
-| Rootless Podman（Linux/amd64）           | supported                                          |
-| Rootful Podman                           | expected to work but not preferred                 |
-| Docker-compatible alias                  | not required                                       |
-| macOS Apple Silicon + Podman             | not tested; release bundle requires Docker Desktop |
+| Runtime                                           | Support                                            |
+| ------------------------------------------------- | -------------------------------------------------- |
+| Docker Engine + `docker compose`                  | supported                                          |
+| Rootless Podman（原生 `podman run`，Linux/amd64） | supported                                          |
+| Podman + `podman compose`（源码开发路径）         | supported for model development                    |
+| Rootful Podman                                    | expected to work but not preferred                 |
+| Docker-compatible alias                           | not required                                       |
+| macOS Apple Silicon + Podman                      | not tested; release bundle requires Docker Desktop |
 
 ## 免责声明
 

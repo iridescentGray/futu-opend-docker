@@ -51,7 +51,11 @@ for bundle in "$linux_bundle" "$mac_bundle"; do
     printf 'release Compose unexpectedly contains a local build\n' >&2
     exit 1
   fi
-  grep -Fq 'run --rm --no-deps --interactive --service-ports' "$bundle/futu-opend"
+  grep -Fq 'run --rm --no-deps --service-ports' "$bundle/futu-opend"
+  if grep -Fq -- '--interactive' "$bundle/futu-opend"; then
+    printf 'release launcher contains a Podman-incompatible Compose flag\n' >&2
+    exit 1
+  fi
   grep -Fq 'external: true' "$bundle/compose.integration.yaml"
   grep -Fq 'FUTU_SHARED_NETWORK' "$bundle/compose.integration.yaml"
   grep -Fq -- '-e FUTU_LOGIN_MODE=interactive futu-opend' "$bundle/futu-opend"
@@ -113,7 +117,7 @@ printf '%s\n' \
   'if [[ ${1:-} == compose && ${2:-} == version ]]; then exit 0; fi' \
   'if [[ ${1:-} == info ]]; then printf "linux\n"; exit 0; fi' \
   'printf "%s\n" "$*" >>"$ENGINE_CAPTURE"' \
-  'if [[ ${!#} == futu-opend && " $* " == *" run "* ]]; then' \
+  'if [[ " $* " == *" run "* && " $* " == *" FUTU_LOGIN_MODE=interactive "* ]]; then' \
   '  printf "请输入账号\n>>> "; IFS= read -r account' \
   '  printf "请输入密码\n>>> "; IFS= read -rs password' \
   '  printf "\n请选择是否记住密码（Y代表记住，N代表不记住）\n>>> "; IFS= read -r remember' \
@@ -155,11 +159,24 @@ exercise_bundle() {
   ENGINE_CAPTURE="$capture" FUTU_CONTAINER_ENGINE="$engine" \
     TEST_UNAME_S="$host_os" TEST_UNAME_M="$host_arch" \
     PATH="$test_root/fake-bin:$PATH" bash "$bundle/futu-opend" logs
-  grep -Fq "compose --env-file $bundle/.env -f $bundle/compose.yaml run --rm --no-deps futu-key-init" "$capture"
-  grep -Fq "compose --env-file $bundle/.env -f $bundle/compose.yaml up -d --no-deps futu-opend" "$capture"
-  grep -Fq "compose --env-file $bundle/.env -f $bundle/compose.yaml down" "$capture"
-  grep -Fq "compose --env-file $bundle/.env -f $bundle/compose.yaml ps" "$capture"
-  grep -Fq "compose --env-file $bundle/.env -f $bundle/compose.yaml logs -f futu-opend" "$capture"
+  if [[ $engine == podman ]]; then
+    grep -Fq 'run --rm --pull=missing --platform linux/amd64 --network none' "$capture"
+    grep -Fq 'entrypoint /usr/local/bin/init-futu-key' "$capture"
+    grep -Fq 'run --name futu-opend --pull=missing --platform linux/amd64' "$capture"
+    grep -Fq 'FUTU_LOGIN_MODE=remember' "$capture"
+    grep -Fq '127.0.0.1:11111:11111' "$capture"
+    grep -Fq 'futu-opend_futu-opend-key:/.futu:ro' "$capture"
+    grep -Fq 'futu-opend_futu-opend-data:/home/futu/.com.futunn.FutuOpenD' "$capture"
+    grep -Fq 'stop --time 30 futu-opend' "$capture"
+    grep -Fq 'ps -a --filter name=^futu-opend$' "$capture"
+    grep -Fq 'logs -f futu-opend' "$capture"
+  else
+    grep -Fq "compose --env-file $bundle/.env -f $bundle/compose.yaml run --rm --no-deps futu-key-init" "$capture"
+    grep -Fq "compose --env-file $bundle/.env -f $bundle/compose.yaml up -d --no-deps futu-opend" "$capture"
+    grep -Fq "compose --env-file $bundle/.env -f $bundle/compose.yaml down" "$capture"
+    grep -Fq "compose --env-file $bundle/.env -f $bundle/compose.yaml ps" "$capture"
+    grep -Fq "compose --env-file $bundle/.env -f $bundle/compose.yaml logs -f futu-opend" "$capture"
+  fi
   if grep -Fq -- 'down -v' "$capture"; then
     printf 'release stop attempted destructive volume teardown\n' >&2
     exit 1
@@ -169,9 +186,8 @@ exercise_bundle() {
     exit 1
   fi
   if [[ $engine == podman ]]; then
-    grep -Fq ' config' "$capture"
-    if grep -Fq 'config --quiet' "$capture"; then
-      printf 'Podman release validation used unsupported config --quiet\n' >&2
+    if grep -Eq '(^|[[:space:]])compose([[:space:]]|$)' "$capture"; then
+      printf 'Podman release launcher unexpectedly used Compose\n' >&2
       exit 1
     fi
   else
@@ -223,8 +239,16 @@ printf '%s\n' \
   >>"$linux_bundle/.env"
 run_bundle_with_tty "$linux_bundle" init "$test_root/linux-podman.args" "$test_root/init.out"
 run_bundle_with_tty "$linux_bundle" reauth "$test_root/linux-podman.args" "$test_root/reauth.out"
-[[ $(grep -c 'run --rm --no-deps --interactive --service-ports' "$test_root/linux-podman.args") == 2 ]]
-grep -Fq "$linux_bundle/compose.integration.yaml" "$test_root/linux-podman.args"
+[[ $(grep -c 'FUTU_LOGIN_MODE=interactive' "$test_root/linux-podman.args") == 2 ]]
+if grep -Fq -- '--interactive' "$test_root/linux-podman.args"; then
+  printf 'Podman release init used an unsupported Compose flag\n' >&2
+  exit 1
+fi
+grep -Fq -- '--network trading-backend --network-alias futu-opend' "$test_root/linux-podman.args"
+if grep -Fq 'compose.integration.yaml' "$test_root/linux-podman.args"; then
+  printf 'native Podman init unexpectedly used a Compose override\n' >&2
+  exit 1
+fi
 if grep -Fq 'FAKE_RELEASE_PASSWORD_MUST_NOT_LEAK' "$test_root/linux-podman.args" ||
   grep -Fq 'FAKE_RELEASE_PASSWORD_MUST_NOT_LEAK' "$test_root/init.out" ||
   grep -Fq 'FAKE_RELEASE_PASSWORD_MUST_NOT_LEAK' "$test_root/reauth.out"; then

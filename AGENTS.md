@@ -41,7 +41,7 @@ Docker/Podman containerization for Futu OpenD — a trading API gateway for Futu
 │       └── references/     # Per-target / per-task detail pulled in on demand
 ├── script/
 │   ├── start.sh            # Entrypoint — validates login mode, renders XML, execs OpenD
-│   ├── container-engine.sh # Shared Docker/Podman Compose auto/explicit resolver
+│   ├── container-engine.sh # Shared Docker Compose/native Podman auto/explicit resolver
 │   ├── container-engine.test.sh # Fake-binary engine-selection matrix
 │   ├── podman_smoke.test.sh # Rootless Podman build/Compose/key-volume smoke
 │   ├── build-release-bundle.sh # Creates digest-pinned Linux and Apple Silicon host archives + checksums
@@ -104,7 +104,7 @@ Docker/Podman containerization for Futu OpenD — a trading API gateway for Futu
 
 - **Multi-stage Docker**: `fetch` downloads the locked Ubuntu 18.04 artifact; `runtime` is both the explicit and default final Linux/amd64 stage. There is no `BASE_IMG` switch or maintained CentOS target.
 - **Non-root OpenD**: The main process runs as `futu`. The isolated `futu-key-init` service runs once as root, with no network and `restart: "no"`, only to copy a read-only mode-`0600` host key into the key volume as the actual `futu` UID/GID and mode `0400`.
-- **Container engine selection**: `FUTU_CONTAINER_ENGINE=auto` prefers a working `docker compose` and otherwise uses a working `podman compose`; explicit `docker|podman` never falls back. Source and release launchers explicitly finish `futu-key-init` before starting OpenD with `--no-deps`.
+- **Container engine selection**: release bundles prefer a working `docker compose` and otherwise use native rootless Podman without a Compose provider; explicit `docker|podman` never falls back. The source initializer retains Compose for model development. Both paths finish `futu-key-init` before starting OpenD.
 - **Login modes (OpenD 10.10.7008 only)**: `FUTU_LOGIN_MODE=interactive` preserves an attached private TTY for official first-run login; `remember` requires `FUTU_ACCOUNT_ID` and passes the documented `-login_account` / `-login_by_remember=1` arguments. Phone accounts may set wrapper input `FUTU_ACCOUNT_AREA_CODE=+NN`; these environment variables are not native OpenD settings.
 - **Passwords**: OpenD 10.10.7008 removed account/password XML settings. Never write them to XML. Non-empty legacy `FUTU_ACCOUNT_PWD` / `FUTU_ACCOUNT_PWD_MD5` inputs fail with a value-free migration message. User-local `FUTU_LOGIN_PASSWORD` belongs only to the host login wrapper; agents never read or supply it.
 - **Scoped Expect proxy**: the host-side proxy may fill `FUTU_ACCOUNT_ID`, submit non-empty wrapper-only `FUTU_LOGIN_PASSWORD` once, answer the remember choice with `Y`, and expand a bare user-entered six-digit phone code only after the official hint. It removes the password before spawning Docker/OpenD and never writes a transcript, enables Telnet, retries a rejected password, or claims login success.

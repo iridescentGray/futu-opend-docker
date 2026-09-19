@@ -1,7 +1,7 @@
 ---
 name: futu-opend
 description: |
-  Install and operate this fork's FutuOpenD 10.10.7008 Docker or Podman Compose
+  Install and operate this fork's FutuOpenD 10.10.7008 Docker or Podman
   service on Linux/amd64, or Docker Desktop service on an Apple Silicon Mac.
   Use for setup, initialization,
   remembered startup, restart, reauthentication, version changes,
@@ -11,7 +11,7 @@ description: |
 # FutuOpenD fork operator
 
 This fork targets one personal Linux/amd64 OpenD 10.10.7008 container under
-Docker or Podman Compose. Source-free bundles support native Linux/amd64 hosts;
+Docker Compose or native rootless Podman. Source-free bundles support native Linux/amd64 hosts;
 Apple Silicon Macs retain Docker Desktop amd64 emulation. Read `AGENTS.md`,
 `README.md`, `docs/deployment.md`, and `docs/fork-hardening.md` before acting.
 
@@ -67,7 +67,8 @@ compatibility package, not a native arm64 OpenD image. It requires Docker
 Desktop in Linux-container mode with Compose v2; Apple Virtualization framework
 with Rosetta is recommended. Do not bypass the launcher's host or engine checks.
 The Linux launcher defaults `FUTU_CONTAINER_ENGINE` to `auto`, preferring a
-working `docker compose` and otherwise using a working `podman compose`.
+working `docker compose` and otherwise using native rootless Podman. The
+release Podman path does not require a Compose provider.
 Explicit `docker` and `podman` selections do not fall back. Rootless Podman is
 the supported Podman path; do not use sudo, aliases, privileged containers,
 `:U`, or `--userns=keep-id`. The macOS bundle remains Docker-only.

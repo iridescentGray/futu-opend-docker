@@ -12,6 +12,15 @@ container_compose_available() {
     "$candidate" compose version >/dev/null 2>&1
 }
 
+container_engine_available() {
+  local candidate=$1
+  if [[ $candidate == podman && ${FUTU_PODMAN_NATIVE:-0} == 1 ]]; then
+    command -v podman >/dev/null 2>&1
+  else
+    container_compose_available "$candidate"
+  fi
+}
+
 resolve_container_engine() {
   local requested=${FUTU_CONTAINER_ENGINE:-auto}
 
@@ -19,7 +28,7 @@ resolve_container_engine() {
   auto)
     if container_compose_available docker; then
       container_engine=docker
-    elif container_compose_available podman; then
+    elif container_engine_available podman; then
       container_engine=podman
     else
       printf '%s\n' \
@@ -28,9 +37,13 @@ resolve_container_engine() {
     fi
     ;;
   docker | podman)
-    if ! container_compose_available "$requested"; then
-      printf 'ERROR: FUTU_CONTAINER_ENGINE=%s requires %s compose\n' \
-        "$requested" "$requested" >&2
+    if ! container_engine_available "$requested"; then
+      if [[ $requested == podman && ${FUTU_PODMAN_NATIVE:-0} == 1 ]]; then
+        printf '%s\n' 'ERROR: FUTU_CONTAINER_ENGINE=podman requires podman' >&2
+      else
+        printf 'ERROR: FUTU_CONTAINER_ENGINE=%s requires %s compose\n' \
+          "$requested" "$requested" >&2
+      fi
       return 69
     fi
     container_engine=$requested

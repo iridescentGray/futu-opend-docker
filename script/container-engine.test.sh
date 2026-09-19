@@ -116,4 +116,14 @@ if grep -Fq 'config --quiet' "$case_dir-podman.args"; then
 fi
 printf 'ok 10 - Podman configuration validation avoids unsupported --quiet\n'
 
-printf '1..10\n'
+case_dir=$test_root/native-podman
+make_engine "$case_dir" podman 1
+PATH="$case_dir" FUTU_CONTAINER_ENGINE=podman FUTU_PODMAN_NATIVE=1 /bin/bash -c '
+  source "$1"
+  resolve_container_engine
+  printf "%s\n" "$container_engine"
+' _ "$root_dir/script/container-engine.sh" >"$case_dir.out"
+grep -Fxq 'podman' "$case_dir.out"
+printf 'ok 11 - release mode accepts native Podman without a Compose provider\n'
+
+printf '1..11\n'

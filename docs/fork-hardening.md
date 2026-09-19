@@ -406,6 +406,9 @@ configuration file. This conflict is recorded rather than silently resolved.
 - [x] Phase 17 — optional deployment-owned trusted-container network and
       release-launcher help, with standalone behavior and volume preservation
       retained for r5.
+- [x] Phase 18 — native rootless Podman release operation without an external
+      Compose provider, retaining the existing container, volume, network,
+      key, login-state, and loopback-publication contracts for r6.
 
 The phases deliberately keep login, security configuration, build hardening,
 and test/CI work separate. Target-platform real login, SDK readiness, image
@@ -1089,3 +1092,27 @@ Unknown commands continue to print usage to stderr and return status 64.
 | Local rootless Podman smoke            | SKIPPED | Podman is unavailable on the local host; the tagged Ubuntu workflow remains the required runtime gate.                                                   |
 | Real login and encrypted SDK readiness | NOT RUN | These remain user-only checks; no credentials, key, session state, or verification code was accessed.                                                    |
 | Tagged `v10.10.7008-r5` GitHub Release | NOT RUN | Requires the release commit and immutable tag to be pushed; publication remains behind all workflow gates.                                               |
+
+## Phase 18 — native rootless Podman release operation
+
+The Linux release launcher now uses native Podman commands when Podman is
+selected. It no longer requires or invokes an external Compose provider. The
+Docker and Apple Silicon paths remain on Docker Compose, and the source-tree
+Compose files remain available for development and model validation.
+
+The native path deliberately reuses the Compose-era resource identities:
+`futu-opend`, `futu-opend_futu-opend-key`, and
+`futu-opend_futu-opend-data`. It prepares the RSA key through the same
+networkless image entrypoint, runs OpenD as `10001:10001`, publishes the API
+only on host loopback, retains the bounded restart/health/log contracts, and
+attaches directly to a configured deployment-owned network without deleting
+that network during stop. No state volume was inspected, renamed, migrated, or
+removed.
+
+| Check                                      | Result  | Notes                                                                                                  |
+| ------------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------ |
+| `bash script/container-engine.test.sh`     | PASSED  | 11 checks, including native Podman selection when its Compose subcommand is unavailable.               |
+| `bash script/release_bundle.test.sh`       | PASSED  | 7 bundle checks; all six Linux Podman operations avoid Compose and preserve Docker/macOS behavior.     |
+| `bash script/initialize-and-start.test.sh` | PASSED  | 4 source initialization checks remain green after removing the redundant Compose `--interactive` flag. |
+| Real rootless Podman runtime               | NOT RUN | Requires Linux/amd64 Podman; fake-engine tests do not prove container runtime behavior.                |
+| Real login and SDK readiness               | NOT RUN | User-only private-terminal acceptance; no credential, verification code, or login state was accessed.  |

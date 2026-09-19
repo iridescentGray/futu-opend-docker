@@ -10,7 +10,13 @@ readonly env_file=${FUTU_ENV_FILE:-$bundle_dir/.env}
 readonly compose_file=$bundle_dir/compose.yaml
 readonly integration_compose_file=$bundle_dir/compose.integration.yaml
 readonly release_host_platform=@@FUTU_RELEASE_HOST_PLATFORM@@
+readonly podman_container=futu-opend
+readonly podman_key_volume=futu-opend_futu-opend-key
+readonly podman_data_volume=futu-opend_futu-opend-data
 compose_files=(-f "$compose_file")
+shared_network=
+podman_opend_args=()
+podman_opend_image=
 
 # shellcheck source=script/container-engine.sh
 source "$bundle_dir/container-engine.sh"
@@ -64,7 +70,7 @@ unquote_env_value() {
 }
 
 require_base() {
-  local engine_os host_arch host_os shared_network
+  local engine_os host_arch host_os
   host_os=$(uname -s)
   host_arch=$(uname -m)
   case "$release_host_platform" in
@@ -80,7 +86,7 @@ require_base() {
     die 'release host metadata is invalid' 70
     ;;
   esac
-  resolve_container_engine || exit $?
+  FUTU_PODMAN_NATIVE=1 resolve_container_engine || exit $?
   if [[ $release_host_platform == macos-apple-silicon && $container_engine == podman ]]; then
     die 'the Apple Silicon release requires Docker Desktop; Podman is supported by the Linux/amd64 release' 69
   fi
@@ -97,7 +103,7 @@ require_base() {
   [[ $shared_network != *$'\n'* && $shared_network != *$'\r'* ]] ||
     die 'FUTU_SHARED_NETWORK must not contain line breaks' 64
   compose_files=(-f "$compose_file")
-  if [[ -n $shared_network ]]; then
+  if [[ -n $shared_network && $container_engine == docker ]]; then
     [[ -f $integration_compose_file ]] ||
       die "integration Compose file not found: $integration_compose_file" 66
     export FUTU_SHARED_NETWORK=$shared_network
@@ -114,9 +120,110 @@ validate_config() {
     "${compose_files[@]}"
 }
 
+runtime_value() {
+  local name=$1 default_value=$2 value
+  value=${!name:-$(read_env_value "$name")}
+  value=$(unquote_env_value "${value%$'\r'}")
+  [[ $value != *$'\n'* && $value != *$'\r'* ]] ||
+    die "$name must not contain line breaks" 64
+  printf '%s' "${value:-$default_value}"
+}
+
+podman_ensure_resources() {
+  podman volume inspect "$podman_key_volume" >/dev/null 2>&1 ||
+    podman volume create "$podman_key_volume" >/dev/null
+  podman volume inspect "$podman_data_volume" >/dev/null 2>&1 ||
+    podman volume create "$podman_data_volume" >/dev/null
+  if [[ -n $shared_network ]]; then
+    podman network exists "$shared_network" ||
+      die "Podman network does not exist: $shared_network" 69
+  fi
+}
+
+podman_image() {
+  local image
+  image=$(runtime_value FUTU_OPEND_IMAGE '')
+  [[ $image =~ ^ghcr\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$ ]] ||
+    die 'FUTU_OPEND_IMAGE must be a lowercase GHCR reference pinned by sha256' 64
+  printf '%s' "$image"
+}
+
+podman_stop() {
+  if podman container exists "$podman_container"; then
+    podman stop --time 30 "$podman_container" >/dev/null
+    podman rm "$podman_container" >/dev/null
+  fi
+}
+
+podman_prepare_runtime_key() {
+  local key=$1 image rsa_path
+  image=$(podman_image)
+  rsa_path=$(runtime_value FUTU_OPEND_RSA_FILE_PATH '/.futu/futu.pem')
+  podman_ensure_resources
+  podman run --rm --pull=missing --platform linux/amd64 --network none \
+    --user root --entrypoint /usr/local/bin/init-futu-key \
+    -e "FUTU_OPEND_RSA_FILE_PATH=$rsa_path" \
+    -v "$key:/source/futu.pem:ro,Z" \
+    -v "$podman_key_volume:/.futu" "$image"
+}
+
+build_podman_opend_command() {
+  local mode=$1 image account area api_ip api_port telnet_ip telnet_port
+  local websocket_ip websocket_port rsa_path
+  image=$(podman_image)
+  account=$(runtime_value FUTU_ACCOUNT_ID '')
+  area=$(runtime_value FUTU_ACCOUNT_AREA_CODE '')
+  api_ip=$(runtime_value FUTU_OPEND_IP '0.0.0.0')
+  api_port=$(runtime_value FUTU_OPEND_PORT '11111')
+  telnet_ip=$(runtime_value FUTU_OPEND_TELNET_IP '127.0.0.1')
+  telnet_port=$(runtime_value FUTU_OPEND_TELNET_PORT '')
+  websocket_ip=$(runtime_value FUTU_OPEND_WEBSOCKET_IP '127.0.0.1')
+  websocket_port=$(runtime_value FUTU_OPEND_WEBSOCKET_PORT '')
+  rsa_path=$(runtime_value FUTU_OPEND_RSA_FILE_PATH '/.futu/futu.pem')
+  [[ $api_port =~ ^[0-9]+$ ]] || die 'FUTU_OPEND_PORT must be numeric' 64
+  podman_opend_args=(run --name "$podman_container" --pull=missing --platform linux/amd64
+    --user 10001:10001 --stop-timeout 30
+    -p "127.0.0.1:$api_port:$api_port"
+    -e HOME=/home/futu
+    -e "FUTU_LOGIN_MODE=$mode"
+    -e "FUTU_ACCOUNT_ID=$account"
+    -e "FUTU_ACCOUNT_AREA_CODE=$area"
+    -e "FUTU_OPEND_IP=$api_ip"
+    -e "FUTU_OPEND_PORT=$api_port"
+    -e "FUTU_OPEND_TELNET_IP=$telnet_ip"
+    -e "FUTU_OPEND_TELNET_PORT=$telnet_port"
+    -e "FUTU_OPEND_WEBSOCKET_IP=$websocket_ip"
+    -e "FUTU_OPEND_WEBSOCKET_PORT=$websocket_port"
+    -e "FUTU_OPEND_RSA_FILE_PATH=$rsa_path"
+    -v "$podman_key_volume:/.futu:ro"
+    -v "$podman_data_volume:/home/futu/.com.futunn.FutuOpenD")
+  if [[ -n $shared_network ]]; then
+    podman_opend_args+=(--network "$shared_network" --network-alias futu-opend)
+  fi
+  podman_opend_image=$image
+}
+
+podman_run_opend() {
+  local mode=$1
+  build_podman_opend_command "$mode"
+  if [[ $mode == interactive ]]; then
+    podman "${podman_opend_args[@]}" --rm -it "$podman_opend_image"
+  else
+    podman "${podman_opend_args[@]}" -d --replace --restart on-failure:3 \
+      --health-cmd 'test "$(cat /proc/1/comm)" = FutuOpenD && grep -Fq "<api_port>${FUTU_OPEND_PORT}</api_port>" "${FUTU_OPEND_RUNTIME_CONFIG:-/tmp/FutuOpenD.xml}"' \
+      --health-interval 30s --health-timeout 5s --health-retries 3 \
+      --health-start-period 180s --log-driver k8s-file \
+      --log-opt max-size=10mb "$podman_opend_image"
+  fi
+}
+
 prepare_runtime_key() {
   local key=$1
-  LOCAL_RSA_FILE_PATH="$key" compose run --rm --no-deps futu-key-init
+  if [[ $container_engine == podman ]]; then
+    podman_prepare_runtime_key "$key"
+  else
+    LOCAL_RSA_FILE_PATH="$key" compose run --rm --no-deps futu-key-init
+  fi
 }
 
 key_path() {
@@ -163,12 +270,17 @@ ensure_key() {
 
 initialize() {
   local account password tty_state status key
+  local -a interactive_command
   [[ -t 0 && -t 1 ]] || die 'initialization requires a private terminal' 64
   command -v expect >/dev/null 2>&1 || die 'expect is required' 69
   ensure_key
   key=$(key_path)
-  LOCAL_RSA_FILE_PATH="$key" validate_config
-  LOCAL_RSA_FILE_PATH="$key" compose down
+  if [[ $container_engine == podman ]]; then
+    podman_stop
+  else
+    LOCAL_RSA_FILE_PATH="$key" validate_config
+    LOCAL_RSA_FILE_PATH="$key" compose down
+  fi
   prepare_runtime_key "$key"
 
   account=${FUTU_ACCOUNT_ID:-$(read_env_value FUTU_ACCOUNT_ID)}
@@ -181,6 +293,16 @@ initialize() {
   [[ $password != *$'\n'* && $password != *$'\r'* ]] ||
     die 'FUTU_LOGIN_PASSWORD must not contain line breaks' 64
 
+  if [[ $container_engine == podman ]]; then
+    build_podman_opend_command interactive
+    interactive_command=(podman "${podman_opend_args[@]}" --rm -it
+      "$podman_opend_image")
+  else
+    interactive_command=("${compose_cmd[@]}" --env-file "$env_file"
+      "${compose_files[@]}" run --rm --no-deps --service-ports
+      -e FUTU_LOGIN_MODE=interactive futu-opend)
+  fi
+
   tty_state=$(stty -g) || die 'unable to read terminal settings' 74
   restore_tty() { stty "$tty_state" 2>/dev/null || true; }
   trap restore_tty EXIT
@@ -189,10 +311,7 @@ initialize() {
   set +e
   FUTU_EXPECT_ACCOUNT="$account" FUTU_EXPECT_PASSWORD="$password" \
     expect "$bundle_dir/interactive-login.exp" \
-    env LOCAL_RSA_FILE_PATH="$key" \
-    "${compose_cmd[@]}" --env-file "$env_file" "${compose_files[@]}" \
-    run --rm --no-deps --interactive --service-ports \
-    -e FUTU_LOGIN_MODE=interactive futu-opend
+    env LOCAL_RSA_FILE_PATH="$key" "${interactive_command[@]}"
   status=$?
   set -e
   password=''
@@ -215,21 +334,37 @@ start)
   require_base
   ensure_key
   selected_key=$(key_path)
-  LOCAL_RSA_FILE_PATH="$selected_key" validate_config
   prepare_runtime_key "$selected_key"
-  LOCAL_RSA_FILE_PATH="$selected_key" compose up -d --no-deps futu-opend
+  if [[ $container_engine == podman ]]; then
+    podman_run_opend remember
+  else
+    LOCAL_RSA_FILE_PATH="$selected_key" validate_config
+    LOCAL_RSA_FILE_PATH="$selected_key" compose up -d --no-deps futu-opend
+  fi
   ;;
 stop)
   require_base
-  LOCAL_RSA_FILE_PATH="$(key_path)" compose down
+  if [[ $container_engine == podman ]]; then
+    podman_stop
+  else
+    LOCAL_RSA_FILE_PATH="$(key_path)" compose down
+  fi
   ;;
 status)
   require_base
-  LOCAL_RSA_FILE_PATH="$(key_path)" compose ps
+  if [[ $container_engine == podman ]]; then
+    podman ps -a --filter "name=^${podman_container}$"
+  else
+    LOCAL_RSA_FILE_PATH="$(key_path)" compose ps
+  fi
   ;;
 logs)
   require_base
-  LOCAL_RSA_FILE_PATH="$(key_path)" compose logs -f futu-opend
+  if [[ $container_engine == podman ]]; then
+    podman logs -f "$podman_container"
+  else
+    LOCAL_RSA_FILE_PATH="$(key_path)" compose logs -f futu-opend
+  fi
   ;;
 *)
   usage >&2

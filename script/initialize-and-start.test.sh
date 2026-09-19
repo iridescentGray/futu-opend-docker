@@ -127,8 +127,9 @@ assert all(not any('integration' in item for item in call) for call in calls[1:]
 assert calls[1][-2:] == ['config', '--quiet'], calls[1]
 assert calls[2][-1] == 'down', calls[2]
 assert calls[3][-4:] == ['run', '--rm', '--no-deps', 'futu-key-init'], calls[3]
-assert 'run' in calls[4] and '--rm' in calls[4] and '--interactive' in calls[4], calls[4]
+assert 'run' in calls[4] and '--rm' in calls[4], calls[4]
 assert '--no-deps' in calls[4] and '--service-ports' in calls[4], calls[4]
+assert '--interactive' not in calls[4], calls[4]
 assert 'FUTU_LOGIN_MODE=interactive' in calls[4], calls[4]
 PY
 grep -Fq 'foreground OpenD process is the active API service' "$success_dir/output"

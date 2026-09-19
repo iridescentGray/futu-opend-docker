@@ -175,7 +175,7 @@ set +e
 FUTU_EXPECT_ACCOUNT="$account_id" FUTU_EXPECT_PASSWORD="$login_password" \
   expect "$root_dir/script/interactive-login.exp" \
   env -u FUTU_OPEND_SHA256 LOCAL_RSA_FILE_PATH="$key_path" \
-  "${compose[@]}" run --rm --no-deps --interactive --service-ports \
+  "${compose[@]}" run --rm --no-deps --service-ports \
   -e FUTU_LOGIN_MODE=interactive futu-opend
 interactive_status=$?
 set -e

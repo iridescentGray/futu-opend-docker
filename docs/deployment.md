@@ -8,8 +8,8 @@
 - OpenD：`10.10.7008`。
 - 容器平台：Linux/amd64。
 - 宿主平台：Linux/amd64；macOS Apple Silicon 通过 Docker Desktop x86 仿真。
-- 部署：单实例 Docker Compose 或 Podman Compose；Linux/amd64 支持 rootless
-  Podman。macOS Apple Silicon 发行包仍使用 Docker Desktop。
+- 部署：单实例 Docker Compose 或原生 rootless Podman；Linux/amd64 的发行包
+  不依赖 Podman Compose。macOS Apple Silicon 发行包仍使用 Docker Desktop。
 - 默认网络：普通 bridge，API 只发布到宿主机 `127.0.0.1`。
 - 可选集成网络：由部署环境预创建的 external network，通过
   `FUTU_SHARED_NETWORK` 加入，不归本 Compose project 所有。
@@ -19,9 +19,9 @@
 
 ## 面向使用者的发行包
 
-当前发行版 `v10.10.7008-r5` 包含 Docker/Podman 双引擎支持、可选的
-`compose.integration.yaml` 可信容器网络，以及发行包启动器的
-`-h` / `--help`。
+当前发行版 `v10.10.7008-r6` 包含 Docker Compose/原生 Podman 双引擎支持、
+可选的可信容器网络，以及发行包启动器的 `-h` / `--help`。Linux/amd64 的
+Podman 路径不依赖外部 Compose provider。
 
 正式使用路径是版本化、无源码的宿主平台发行包。当前同时生成
 `linux-amd64` 和 `macos-apple-silicon` 两个归档；两者都运行同一个经过测试、
@@ -50,16 +50,17 @@ chmod 0600 .env
 主机重启后，才使用 `start` 从命名卷中的 remembered 状态后台启动。
 
 Linux 启动器默认使用 `FUTU_CONTAINER_ENGINE=auto`，先实际检查
-`docker compose version`，不可用时再检查 `podman compose version`。Docker
-命令存在但 Compose 子命令不可用时也会选择 Podman。显式模式不会回退：
+`docker compose version`，不可用时再检查原生 `podman`。Docker 命令存在但
+Compose 子命令不可用时也会选择 Podman。显式模式不会回退：
 
 ```bash
 FUTU_CONTAINER_ENGINE=docker ./futu-opend start
 FUTU_CONTAINER_ENGINE=podman ./futu-opend start
 ```
 
-不支持其他值，也不需要 `alias docker=podman`。`podman compose` 是外部
-Compose provider 的包装，部署前必须确保其版本检查成功。
+不支持其他值，也不需要 `alias docker=podman`。发行包的 Podman 路径直接使用
+`podman volume`、`podman run`、`podman stop` 和 `podman logs`，不安装或调用
+外部 Compose provider。源码开发路径仍保留 Podman Compose 模型验证。
 
 推送符合 `v<OpenD版本>-r<发行修订>` 的标签（例如
 `v10.10.7008-r1`）会触发发行工作流。工作流依次运行 Layer 1、对待发布镜像
@@ -391,9 +392,9 @@ Linux/amd64 上实际验证。
 宿主机防火墙或 Docker daemon。业务就绪必须通过 SDK 实际返回值确认。
 
 Podman 将 `json-file` 作为 `k8s-file` 的兼容名称并支持 `max-size`。Docker 的
-`max-file` 选项在不同 Podman Compose provider 上可能有版本差异，因此 CI 会
-通过真实 rootless Podman Compose 创建密钥服务来验证受支持组合。若本机报
-日志选项错误，应升级 Podman/Compose provider，不要删除 Docker 的轮转保护。
+源码 Compose 验证中的 `max-file` 选项在不同 Podman Compose provider 上可能
+有版本差异。发行包的原生 Podman 路径改用 `k8s-file` 和 `max-size`，不再经过
+provider；Docker 路径继续保留 `json-file` 的 `max-size`/`max-file` 轮转。
 
 ## SDK 连接示例
 
