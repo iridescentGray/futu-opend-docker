@@ -412,6 +412,8 @@ configuration file. This conflict is recorded rather than silently resolved.
 - [x] Phase 19 — version-proposal branch reuse: resume an existing same-version
       review branch without force-pushing or deleting it, and create the review
       PR only after synchronized metadata is present.
+- [x] Phase 19 follow-up — format the audit document with the pinned Prettier
+      hook and verify the complete lint suite before the next commit.
 
 The phases deliberately keep login, security configuration, build hardening,
 and test/CI work separate. Target-platform real login, SDK readiness, image
@@ -1135,10 +1137,21 @@ pushes only when staged changes exist, and then creates the review-only PR. It
 does not force-push, delete, or merge a branch. A static CI-policy assertion
 covers the reuse path and the absence of force push.
 
-| Check | Result | Notes |
-| --- | --- | --- |
-| Failed scheduled run `#20` log inspection | PASSED | Root cause was the rejected non-fast-forward push; metadata detection and synchronization had already succeeded. |
-| `bash script/ci_config.test.sh` | PASSED | All seven workflow-policy assertions passed after the workflow/test edit. |
-| `bash script/layer1.test.sh` | PASSED | All offline Layer 1 suites passed, including the updated workflow-policy test. |
-| Workflow YAML parse and `git diff --check` | PASSED | The changed workflow parses and has no whitespace errors. |
-| Scheduled workflow after merge | NOT RUN | Requires a normal main-branch commit; it should create or reuse a review-only PR for `10.11.7108`. |
+The subsequent main-branch Lint run
+[`#26`](https://github.com/iridescentGray/futu-opend-docker/actions/runs/36681459772)
+failed only because Prettier reformatted this document. All other applicable
+lint hooks passed. The follow-up applies the pinned formatter without changing
+workflow or runtime behavior; a new remote Lint run remains unverified until
+the formatting correction is committed and pushed.
+
+Local follow-up checks: the complete pinned `pre-commit run --all-files` suite
+and `git diff --check` PASSED after formatting. Container smoke and live login
+were NOT RUN for this documentation-only correction.
+
+| Check                                      | Result  | Notes                                                                                                            |
+| ------------------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------- |
+| Failed scheduled run `#20` log inspection  | PASSED  | Root cause was the rejected non-fast-forward push; metadata detection and synchronization had already succeeded. |
+| `bash script/ci_config.test.sh`            | PASSED  | All seven workflow-policy assertions passed after the workflow/test edit.                                        |
+| `bash script/layer1.test.sh`               | PASSED  | All offline Layer 1 suites passed, including the updated workflow-policy test.                                   |
+| Workflow YAML parse and `git diff --check` | PASSED  | The changed workflow parses and has no whitespace errors.                                                        |
+| Scheduled workflow after merge             | NOT RUN | Requires a normal main-branch commit; it should create or reuse a review-only PR for `10.11.7108`.               |
