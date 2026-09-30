@@ -57,10 +57,20 @@ jobs:
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git checkout -b "$BRANCH"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null; then
+            echo "Reusing existing review branch ${BRANCH}"
+            git fetch --no-tags origin "$BRANCH"
+            git checkout --track -b "$BRANCH" "origin/$BRANCH"
+          else
+            git checkout -b "$BRANCH"
+          fi
           git add -- $SYNC_FILES
-          git commit -m "Propose Futu OpenD ${VERSION}"
-          git push --set-upstream origin "$BRANCH"
+          if ! git diff --cached --quiet; then
+            git commit -m "Propose Futu OpenD ${VERSION}"
+            git push --set-upstream origin "$BRANCH"
+          else
+            echo "Existing review branch already contains the synchronized metadata"
+          fi
 
           gh pr create \
             --title "Propose Futu OpenD ${VERSION}" \

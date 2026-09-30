@@ -409,6 +409,9 @@ configuration file. This conflict is recorded rather than silently resolved.
 - [x] Phase 18 — native rootless Podman release operation without an external
       Compose provider, retaining the existing container, volume, network,
       key, login-state, and loopback-publication contracts for r6.
+- [x] Phase 19 — version-proposal branch reuse: resume an existing same-version
+      review branch without force-pushing or deleting it, and create the review
+      PR only after synchronized metadata is present.
 
 The phases deliberately keep login, security configuration, build hardening,
 and test/CI work separate. Target-platform real login, SDK readiness, image
@@ -1116,3 +1119,26 @@ removed.
 | `bash script/initialize-and-start.test.sh` | PASSED  | 4 source initialization checks remain green after removing the redundant Compose `--interactive` flag. |
 | Real rootless Podman runtime               | NOT RUN | Requires Linux/amd64 Podman; fake-engine tests do not prove container runtime behavior.                |
 | Real login and SDK readiness               | NOT RUN | User-only private-terminal acceptance; no credential, verification code, or login state was accessed.  |
+
+## Phase 19 — version-proposal branch reuse
+
+On 2026-09-30, scheduled workflow run
+[`#20`](https://github.com/iridescentGray/futu-opend-docker/actions/runs/36670001072)
+successfully detected OpenD `10.11.7108` and synchronized the metadata, but
+failed when pushing `update-futu-opend-10.11.7108`: that remote branch already
+existed without an open pull request. The former workflow created a fresh local
+branch of the same name and attempted a non-fast-forward push.
+
+The proposal workflow now checks for that exact remote branch first. It fetches
+and tracks it when present, applies the synchronized metadata, commits and
+pushes only when staged changes exist, and then creates the review-only PR. It
+does not force-push, delete, or merge a branch. A static CI-policy assertion
+covers the reuse path and the absence of force push.
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| Failed scheduled run `#20` log inspection | PASSED | Root cause was the rejected non-fast-forward push; metadata detection and synchronization had already succeeded. |
+| `bash script/ci_config.test.sh` | PASSED | All seven workflow-policy assertions passed after the workflow/test edit. |
+| `bash script/layer1.test.sh` | PASSED | All offline Layer 1 suites passed, including the updated workflow-policy test. |
+| Workflow YAML parse and `git diff --check` | PASSED | The changed workflow parses and has no whitespace errors. |
+| Scheduled workflow after merge | NOT RUN | Requires a normal main-branch commit; it should create or reuse a review-only PR for `10.11.7108`. |

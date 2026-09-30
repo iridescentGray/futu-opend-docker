@@ -98,6 +98,12 @@ assert '--auto' not in version
 assert 'issues: write' not in version
 assert '${{ github.token }}' in version
 assert 'Human review' in version
+assert 'git ls-remote --exit-code --heads origin "$BRANCH"' in version
+assert 'git fetch --no-tags origin "$BRANCH"' in version
+assert 'git checkout --track -b "$BRANCH" "origin/$BRANCH"' in version
+assert 'git diff --cached --quiet' in version
+assert 'git push --set-upstream origin "$BRANCH"' in version
+assert '--force' not in version
 print('ok 6 - version automation uses the repository token and creates review-only PRs')
 
 for name, text in workflows.items():
