@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: futu-opend-version-proposal
+  cancel-in-progress: false
+
 jobs:
   propose-version:
     runs-on: ubuntu-latest
@@ -50,20 +54,37 @@ jobs:
             exit 1
           fi
           BRANCH="update-futu-opend-${VERSION}"
-          if [ "$(gh pr list --head "$BRANCH" --state open --json number --jq 'length')" != 0 ]; then
+          OPEN_PRS=$(gh pr list --head "$BRANCH" --state open --json number --jq 'length')
+          if [ "$OPEN_PRS" != 0 ]; then
             echo "An open review PR already exists for ${BRANCH}"
             exit 0
           fi
+
+          # Preserve generated files before switching away from the dirty base.
+          SNAPSHOT=$(mktemp -d)
+          trap 'rm -rf -- "$SNAPSHOT"' EXIT
+          for FILE in $SYNC_FILES; do
+            cp -- "$FILE" "$SNAPSHOT/$(basename "$FILE")"
+          done
+          git restore -- $SYNC_FILES
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null; then
             echo "Reusing existing review branch ${BRANCH}"
             git fetch --no-tags origin "$BRANCH"
-            git checkout --track -b "$BRANCH" "origin/$BRANCH"
+            git checkout -b "$BRANCH" FETCH_HEAD
           else
+            REMOTE_STATUS=$?
+            if [ "$REMOTE_STATUS" -ne 2 ]; then
+              echo 'Unable to check the remote proposal branch' >&2
+              exit "$REMOTE_STATUS"
+            fi
             git checkout -b "$BRANCH"
           fi
+          for FILE in $SYNC_FILES; do
+            cp -- "$SNAPSHOT/$(basename "$FILE")" "$FILE"
+          done
           git add -- $SYNC_FILES
           if ! git diff --cached --quiet; then
             git commit -m "Propose Futu OpenD ${VERSION}"

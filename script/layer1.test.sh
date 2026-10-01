@@ -17,4 +17,5 @@ bash script/compose.test.sh
 bash script/release_bundle.test.sh
 bash script/live_readonly.test.sh
 bash script/ci_config.test.sh
+bash script/version_proposal.test.sh
 bash script/ci_gate.test.sh

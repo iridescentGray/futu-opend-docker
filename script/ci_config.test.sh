@@ -100,7 +100,10 @@ assert '${{ github.token }}' in version
 assert 'Human review' in version
 assert 'git ls-remote --exit-code --heads origin "$BRANCH"' in version
 assert 'git fetch --no-tags origin "$BRANCH"' in version
-assert 'git checkout --track -b "$BRANCH" "origin/$BRANCH"' in version
+assert 'git checkout -b "$BRANCH" FETCH_HEAD' in version
+assert 'git restore -- $SYNC_FILES' in version
+assert 'SNAPSHOT=$(mktemp -d)' in version
+assert 'cancel-in-progress: false' in version
 assert 'git diff --cached --quiet' in version
 assert 'git push --set-upstream origin "$BRANCH"' in version
 assert '--force' not in version

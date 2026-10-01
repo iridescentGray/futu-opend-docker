@@ -415,6 +415,10 @@ configuration file. This conflict is recorded rather than silently resolved.
 - [x] Phase 19 follow-up — format the audit document with the pinned Prettier
       hook and verify the complete lint suite before the next commit.
 
+- [x] Phase 20 — preserve synchronized version files across branch checkout,
+      verify the actual workflow against temporary Git remotes, and serialize
+      proposal runs. Remote workflow acceptance remains pending.
+
 The phases deliberately keep login, security configuration, build hardening,
 and test/CI work separate. Target-platform real login, SDK readiness, image
 smoke, state compatibility and long-running behavior remain operator acceptance
@@ -1155,3 +1159,39 @@ were NOT RUN for this documentation-only correction.
 | `bash script/layer1.test.sh`               | PASSED  | All offline Layer 1 suites passed, including the updated workflow-policy test.                                   |
 | Workflow YAML parse and `git diff --check` | PASSED  | The changed workflow parses and has no whitespace errors.                                                        |
 | Scheduled workflow after merge             | NOT RUN | Requires a normal main-branch commit; it should create or reuse a review-only PR for `10.11.7108`.               |
+
+## Phase 20 — executable version-proposal regression coverage
+
+The 2026-10-01 scheduled run
+[`#21`](https://github.com/iridescentGray/futu-opend-docker/actions/runs/36817242032)
+used the Phase 19 fix but failed at branch checkout. Version detection and
+synchronization succeeded; switching to the existing proposal branch would
+have overwritten the generated changes in `opend_version.json`, `README.md`,
+`AGENTS.md`, and `.env.example`. The former static policy check did not execute
+this Git transition and therefore missed the defect.
+
+The workflow now snapshots only the generated synchronization files to a
+temporary directory, restores those tracked files before checkout, and reapplies
+the snapshot on the proposal branch. It checks out the fetched commit through
+`FETCH_HEAD`, which also works with a shallow single-branch clone. Existing
+reviewer commits remain ancestors of any new proposal commit; identical
+metadata does not cause another commit or push. Proposal runs are serialized.
+PR-query failures and remote lookup errors propagate instead of being mistaken
+for an existing PR or an absent branch.
+
+`script/version_proposal.test.sh` extracts and executes the actual workflow
+body against isolated local bare Git remotes and shallow clones, using fake
+Node and GitHub CLI responses. Its six cases cover new branches, existing
+identical and differing metadata, an existing open PR, no changes, and a failed
+PR query. Tests assert the generated remote contents, retained reviewer work,
+fast-forward ancestry, unchanged main, and PR-creation behavior. Layer 1 now
+includes this regression suite.
+
+| Check                                 | Result  | Notes                                                                                                                   |
+| ------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Actual workflow regression            | PASSED  | All six isolated Git scenarios passed.                                                                                  |
+| Node unit tests                       | PASSED  | 37 tests passed using the bundled Node runtime.                                                                         |
+| Offline Layer 1                       | PASSED  | Complete shell/config suite, including workflow regression, passed.                                                     |
+| Local npm entry point                 | FAILED  | The local mise shim attempted to install unavailable Node 24.2.0; equivalent unit and offline suites were run directly. |
+| Container smoke / live acceptance     | NOT RUN | Workflow-only change; no service, credentials, or production state accessed.                                            |
+| Remote workflow after this correction | NOT RUN | Local changes have not been pushed; a successful remote run is still required.                                          |
